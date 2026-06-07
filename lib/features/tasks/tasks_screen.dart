@@ -181,146 +181,239 @@ class _TasksContentState extends State<TasksContent> {
   //----------------------------------------------------------------------------
   // WELCOME SECTION
   //----------------------------------------------------------------------------
-  Widget _buildWelcomeSection() {
-    final totalTasks = _controller.tasks.length;
-    final completedTasks = _controller.tasks.where((t) => t.status == TaskStatus.completed).length;
-    final pendingTasks = totalTasks - completedTasks;
-    final completionRate = totalTasks > 0 ? (completedTasks / totalTasks * 100).round() : 0;
-    
-    String motivationalMessage;
-    IconData motivationalIcon;
-    Color motivationalColor;
-    
-    if (completionRate == 100) {
-      motivationalMessage = '🎉 مذهل! أنجزت جميع مهامك';
-      motivationalIcon = Icons.emoji_events;
-      motivationalColor = AppTheme.statusCompleted;
-    } else if (completionRate >= 75) {
-      motivationalMessage = '🌟 أداء رائع! أنت على بعد خطوات قليلة';
-      motivationalIcon = Icons.rocket_launch;
-      motivationalColor = AppTheme.primary;
-    } else if (completionRate >= 50) {
-      motivationalMessage = '📈 في منتصف الطريق! استمر بهذا الزخم';
-      motivationalIcon = Icons.trending_up;
-      motivationalColor = AppTheme.statusPending;
-    } else if (completionRate >= 25) {
-      motivationalMessage = '💪 بداية جيدة! أنت تبني عادة الإنتاجية';
-      motivationalIcon = Icons.fitness_center;
-      motivationalColor = AppTheme.secondary;
-    } else {
-      motivationalMessage = '✨ ابدأ رحلتك! أضف مهامك الأولى اليوم';
-      motivationalIcon = Icons.auto_awesome;
-      motivationalColor = AppTheme.tertiary;
-    }
-    
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.primary.withValues(alpha: 0.08),
-            AppTheme.primaryContainer.withValues(alpha: 0.03),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 54,
-                height: 54,
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: const Icon(Icons.waving_hand, size: 28, color: Colors.white),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('مرحباً، سارة', style: AppTheme.headlineMd.copyWith(fontWeight: FontWeight.w700, fontSize: 18)),
-                    const SizedBox(height: 4),
-                    Text(
-                      pendingTasks == 0 ? 'جميع المهام مكتملة 🎉' : 'لديك $pendingTasks مهام متبقية',
-                      style: AppTheme.bodyMd.copyWith(fontSize: 13, color: AppTheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 60,
-                height: 60,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value: completionRate / 100,
-                      backgroundColor: AppTheme.surfaceContainerHighest,
-                      color: AppTheme.primary,
-                      strokeWidth: 5,
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('$completionRate', style: AppTheme.headlineMd.copyWith(fontSize: 16, fontWeight: FontWeight.w800, color: AppTheme.primary)),
-                        Text('%', style: AppTheme.labelSm.copyWith(fontSize: 10, color: AppTheme.primary)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('التقدم اليومي', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-                  Text('$completedTasks من $totalTasks مهام', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: completionRate / 100,
-                  backgroundColor: AppTheme.surfaceContainerHighest,
-                  color: AppTheme.primary,
-                  minHeight: 8,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: motivationalColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Row(
-              children: [
-                Icon(motivationalIcon, size: 18, color: motivationalColor),
-                const SizedBox(width: 8),
-                Expanded(child: Text(motivationalMessage, style: AppTheme.labelMd.copyWith(color: motivationalColor, fontSize: 12))),
-              ],
-            ),
-          ),
+Widget _buildWelcomeSection() {
+  final totalTasks = _controller.tasks.length;
+  final completedTasks = _controller.tasks.where((t) => t.status == TaskStatus.completed).length;
+  final pendingTasks = totalTasks - completedTasks;
+  final completionRate = totalTasks > 0 ? (completedTasks / totalTasks * 100).round() : 0;
+  
+  // تحديد رسالة تحفيزية حسب نسبة الإنجاز
+  String motivationalMessage;
+  IconData motivationalIcon;
+  Color motivationalColor;
+  
+  if (completionRate == 100) {
+    motivationalMessage = '🎉 مذهل! أنجزت جميع مهامك';
+    motivationalIcon = Icons.emoji_events;
+    motivationalColor = AppTheme.statusCompleted;
+  } else if (completionRate >= 75) {
+    motivationalMessage = '🌟 أداء رائع! أنت على بعد خطوات قليلة';
+    motivationalIcon = Icons.rocket_launch;
+    motivationalColor = AppTheme.primary;
+  } else if (completionRate >= 50) {
+    motivationalMessage = '📈 في منتصف الطريق! استمر بهذا الزخم';
+    motivationalIcon = Icons.trending_up;
+    motivationalColor = AppTheme.statusPending;
+  } else if (completionRate >= 25) {
+    motivationalMessage = '💪 بداية جيدة! أنت تبني عادة الإنتاجية';
+    motivationalIcon = Icons.fitness_center;
+    motivationalColor = AppTheme.secondary;
+  } else {
+    motivationalMessage = '✨ ابدأ رحلتك! أضف مهامك الأولى اليوم';
+    motivationalIcon = Icons.auto_awesome;
+    motivationalColor = AppTheme.tertiary;
+  }
+  
+  return Container(
+    margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          AppTheme.primary.withValues(alpha: 0.08),
+          AppTheme.primaryContainer.withValues(alpha: 0.03),
         ],
       ),
-    );
-  }
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.1)),
+    ),
+    child: Column(
+      children: [
+        // الصف العلوي: الأيقونة + الترحيب + نسبة الإنجاز
+        Row(
+          children: [
+            // أيقونة الترحيب
+            Container(
+              width: 54,
+              height: 54,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.waving_hand, size: 28, color: Colors.white),
+            ),
+            const SizedBox(width: 14),
+            
+            // النصوص الترحيبية
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'مرحباً، سارة',
+                    style: AppTheme.headlineMd.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    pendingTasks == 0 
+                        ? 'جميع المهام مكتملة 🎉' 
+                        : 'لديك $pendingTasks مهام متبقية',
+                    style: AppTheme.bodyMd.copyWith(
+                      fontSize: 13,
+                      color: AppTheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // نسبة الإنجاز (دائرية محسنة)
+            SizedBox(
+              width: 75,
+              height: 75,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // الحلقة الخلفية (الجزء غير المكتمل)
+                  SizedBox(
+                    width: 70,
+                    height: 70,
+                    child: CircularProgressIndicator(
+                      value: 1.0,
+                      strokeWidth: 6,
+                      backgroundColor: Colors.transparent,
+                      color: AppTheme.surfaceContainerHighest,
+                    ),
+                  ),
+                  // الحلقة الأمامية (نسبة الإنجاز)
+                  SizedBox(
+                    width: 70,
+                    height: 70,
+                    child: CircularProgressIndicator(
+                      value: completionRate / 100,
+                      strokeWidth: 6,
+                      backgroundColor: Colors.transparent,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                  // النص في المنتصف
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '$completionRate',
+                        style: AppTheme.headlineMd.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                      Text(
+                        '%',
+                        style: AppTheme.labelSm.copyWith(
+                          fontSize: 10,
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 20),
+        
+        // شريط التقدم التفصيلي المحسن
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'التقدم اليومي',
+                  style: AppTheme.labelSm.copyWith(
+                    color: AppTheme.outline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '$completedTasks من $totalTasks مهام',
+                  style: AppTheme.labelSm.copyWith(
+                    color: AppTheme.outline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: LinearProgressIndicator(
+                value: completionRate / 100,
+                backgroundColor: AppTheme.surfaceContainerHighest,
+                color: AppTheme.primary,
+                minHeight: 10,
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: 16),
+        
+        // رسالة تحفيزية محسنة
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: motivationalColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: motivationalColor.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: motivationalColor.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(motivationalIcon, size: 18, color: motivationalColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  motivationalMessage,
+                  style: AppTheme.labelMd.copyWith(
+                    color: motivationalColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   //----------------------------------------------------------------------------
   // STATISTICS CARDS
