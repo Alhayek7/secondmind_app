@@ -6,6 +6,7 @@ import 'package:secondmind/core/theme/app_theme.dart';
 import 'package:secondmind/core/routes/app_routes.dart';
 import 'package:secondmind/features/legal/terms_screen.dart';
 import 'package:secondmind/features/legal/privacy_policy_screen.dart';
+import 'package:secondmind/data/services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -33,41 +34,45 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSignup() async {
-    if (_nameController.text.trim().isEmpty) {
-      _showErrorSnackbar('الرجاء إدخال الاسم الكامل');
-      return;
-    }
-    if (_emailController.text.trim().isEmpty) {
-      _showErrorSnackbar('الرجاء إدخال البريد الإلكتروني');
-      return;
-    }
-    if (!_emailController.text.contains('@')) {
-      _showErrorSnackbar('الرجاء إدخال بريد إلكتروني صحيح');
-      return;
-    }
-    if (_passwordController.text.isEmpty) {
-      _showErrorSnackbar('الرجاء إدخال كلمة المرور');
-      return;
-    }
-    if (_passwordController.text.length < 6) {
-      _showErrorSnackbar('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-      return;
-    }
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showErrorSnackbar('كلمة المرور غير متطابقة');
-      return;
-    }
-    if (!_agreeTerms) {
-      _showErrorSnackbar('يجب الموافقة على شروط الخدمة وسياسة الخصوصية');
-      return;
-    }
-
-    _isLoading.value = true;
-    await Future.delayed(const Duration(seconds: 1));
-    _isLoading.value = false;
-    Get.offAllNamed(AppRoutes.tasks);
+Future<void> _handleSignup() async {
+  if (_nameController.text.trim().isEmpty) {
+    _showErrorSnackbar('الرجاء إدخال الاسم الكامل');
+    return;
   }
+  if (_emailController.text.trim().isEmpty) {
+    _showErrorSnackbar('الرجاء إدخال البريد الإلكتروني');
+    return;
+  }
+  if (!_emailController.text.contains('@')) {
+    _showErrorSnackbar('الرجاء إدخال بريد إلكتروني صحيح');
+    return;
+  }
+  if (_passwordController.text.isEmpty) {
+    _showErrorSnackbar('الرجاء إدخال كلمة المرور');
+    return;
+  }
+  if (_passwordController.text.length < 6) {
+    _showErrorSnackbar('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+    return;
+  }
+  if (_passwordController.text != _confirmPasswordController.text) {
+    _showErrorSnackbar('كلمة المرور غير متطابقة');
+    return;
+  }
+  if (!_agreeTerms) {
+    _showErrorSnackbar('يجب الموافقة على شروط الخدمة وسياسة الخصوصية');
+    return;
+  }
+
+  _isLoading.value = true;
+  await Future.delayed(const Duration(seconds: 1));
+  _isLoading.value = false;
+  
+  // ✅ حفظ حالة تسجيل الدخول
+  await AuthService.to.login();
+  
+  Get.offAllNamed(AppRoutes.tasks);
+}
 
   void _showErrorSnackbar(String message) {
     Get.snackbar(

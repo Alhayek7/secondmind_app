@@ -82,40 +82,40 @@ class AppTheme {
     BoxShadow(offset: const Offset(-4, -4), blurRadius: 8, color: Colors.white),
   ];
   
-  // ============ Typography ============
-  static TextStyle get displayLg => GoogleFonts.tajawal(
+  // ============ Typography (using Cairo font - supports Arabic) ============
+  static TextStyle get displayLg => GoogleFonts.cairo(
     fontSize: 48, fontWeight: FontWeight.w700, height: 1.2, letterSpacing: -0.02, color: onSurface,
   );
   
-  static TextStyle get headlineXl => GoogleFonts.tajawal(
+  static TextStyle get headlineXl => GoogleFonts.cairo(
     fontSize: 32, fontWeight: FontWeight.w700, height: 1.25, letterSpacing: -0.01, color: onSurface,
   );
   
-  static TextStyle get headlineLg => GoogleFonts.tajawal(
+  static TextStyle get headlineLg => GoogleFonts.cairo(
     fontSize: 24, fontWeight: FontWeight.w600, height: 1.33, color: onSurface,
   );
   
-  static TextStyle get headlineMd => GoogleFonts.tajawal(
+  static TextStyle get headlineMd => GoogleFonts.cairo(
     fontSize: 18, fontWeight: FontWeight.w600, height: 1.4, color: onSurface,
   );
   
-  static TextStyle get bodyLg => GoogleFonts.tajawal(
+  static TextStyle get bodyLg => GoogleFonts.cairo(
     fontSize: 16, fontWeight: FontWeight.w400, height: 1.5, color: onSurface,
   );
   
-  static TextStyle get bodyMd => GoogleFonts.tajawal(
+  static TextStyle get bodyMd => GoogleFonts.cairo(
     fontSize: 14, fontWeight: FontWeight.w400, height: 1.43, color: onSurfaceVariant,
   );
   
-  static TextStyle get labelLg => GoogleFonts.tajawal(
+  static TextStyle get labelLg => GoogleFonts.cairo(
     fontSize: 14, fontWeight: FontWeight.w600, height: 1.43, color: onSurfaceVariant,
   );
   
-  static TextStyle get labelMd => GoogleFonts.tajawal(
+  static TextStyle get labelMd => GoogleFonts.cairo(
     fontSize: 12, fontWeight: FontWeight.w600, height: 1.33, letterSpacing: 0.02, color: onSurfaceVariant,
   );
   
-  static TextStyle get labelSm => GoogleFonts.tajawal(
+  static TextStyle get labelSm => GoogleFonts.cairo(
     fontSize: 11, fontWeight: FontWeight.w500, height: 1.27, color: outline,
   );
   
@@ -125,7 +125,7 @@ class AppTheme {
       brightness: Brightness.light,
       primaryColor: primary,
       scaffoldBackgroundColor: background,
-      fontFamily: GoogleFonts.tajawal().fontFamily,
+      fontFamily: GoogleFonts.cairo().fontFamily,
       colorScheme: const ColorScheme.light(
         primary: primary,
         onPrimary: onPrimary,

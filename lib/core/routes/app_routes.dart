@@ -16,6 +16,7 @@ import 'package:secondmind/features/legal/privacy_policy_screen.dart';
 import 'package:secondmind/features/focus/focus_screen.dart';
 import 'package:secondmind/features/tasks/task_details_screen.dart';
 import 'package:secondmind/features/rate/rate_app_screen.dart';
+import 'package:secondmind/features/calendar/calendar_screen.dart';
 
 
 class AppRoutes {
@@ -34,6 +35,8 @@ class AppRoutes {
   static const String focus = '/focus';
   static const String taskDetails = '/task-details';
 static const String rate = '/rate';
+  static const String calendar = '/calendar';
+
 
   static List<GetPage> routes = [
     GetPage(name: splash, page: () => const SplashScreen()),
@@ -51,6 +54,8 @@ static const String rate = '/rate';
     GetPage(name: focus, page: () => const FocusScreen(), middlewares: [AuthMiddleware()]),
     GetPage(name: taskDetails, page: () => TaskDetailsScreen(task: Get.arguments['task']), middlewares: [AuthMiddleware()]),
     GetPage(name: rate, page: () => const RateAppScreen()),
+        GetPage(name: calendar, page: () => const CalendarScreen(), middlewares: [AuthMiddleware()]),
+
 
   ];
 }

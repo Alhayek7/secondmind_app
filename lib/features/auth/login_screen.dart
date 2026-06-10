@@ -52,8 +52,8 @@ Future<void> _handleLogin() async {
   await Future.delayed(const Duration(seconds: 1));
   _isLoading.value = false;
   
-  // ✅ إضافة تسجيل الدخول في خدمة المصادقة
-  AuthService.to.login();
+  // ✅ حفظ حالة تسجيل الدخول
+  await AuthService.to.login();
   
   Get.offAllNamed(AppRoutes.tasks);
 }
@@ -63,11 +63,13 @@ Future<void> _handleGuestLogin() async {
   await Future.delayed(const Duration(milliseconds: 800));
   _isLoading.value = false;
   
-  // ✅ إضافة تسجيل الدخول في خدمة المصادقة
-  AuthService.to.login();
+  // ✅ حفظ حالة تسجيل الدخول
+  await AuthService.to.login();
   
   Get.offAllNamed(AppRoutes.tasks);
 }
+
+
 
 
 
@@ -198,9 +200,9 @@ Future<void> _handleGuestLogin() async {
             const SizedBox(height: 16),
             _buildGuestButton(),
             const SizedBox(height: 24),
-            _buildDivider(),
+            // _buildDivider(),
             const SizedBox(height: 20),
-            _buildSocialButtons(),
+            // _buildSocialButtons(),
           ],
         ),
       ),
@@ -362,62 +364,62 @@ Future<void> _handleGuestLogin() async {
     ));
   }
 
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        Expanded(child: Divider(color: AppTheme.outlineVariant, thickness: 0.8)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text('أو المتابعة عبر', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-        ),
-        Expanded(child: Divider(color: AppTheme.outlineVariant, thickness: 0.8)),
-      ],
-    );
-  }
+  // Widget _buildDivider() {
+  //   return Row(
+  //     children: [
+  //       Expanded(child: Divider(color: AppTheme.outlineVariant, thickness: 0.8)),
+  //       Padding(
+  //         padding: const EdgeInsets.symmetric(horizontal: 16),
+  //         child: Text('أو المتابعة عبر', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+  //       ),
+  //       Expanded(child: Divider(color: AppTheme.outlineVariant, thickness: 0.8)),
+  //     ],
+  //   );
+  // }
 
-  Widget _buildSocialButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () => _showErrorSnackbar('سيتم إضافة تسجيل الدخول عبر Google قريباً'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              side: BorderSide(color: AppTheme.outlineVariant),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.g_mobiledata, size: 20),
-                const SizedBox(width: 8),
-                Text('جوجل', style: TextStyle(color: AppTheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: OutlinedButton(
-            onPressed: () => _showErrorSnackbar('سيتم إضافة تسجيل الدخول عبر Apple قريباً'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              side: BorderSide(color: AppTheme.outlineVariant),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.apple, size: 20),
-                const SizedBox(width: 8),
-                Text('آبل', style: TextStyle(color: AppTheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // Widget _buildSocialButtons() {
+  //   return Row(
+  //     children: [
+  //       Expanded(
+  //         child: OutlinedButton(
+  //           onPressed: () => _showErrorSnackbar('سيتم إضافة تسجيل الدخول عبر Google قريباً'),
+  //           style: OutlinedButton.styleFrom(
+  //             padding: const EdgeInsets.symmetric(vertical: 12),
+  //             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  //             side: BorderSide(color: AppTheme.outlineVariant),
+  //           ),
+  //           child: Row(
+  //             mainAxisAlignment: MainAxisAlignment.center,
+  //             children: [
+  //               const Icon(Icons.g_mobiledata, size: 20),
+  //               const SizedBox(width: 8),
+  //               Text('جوجل', style: TextStyle(color: AppTheme.onSurfaceVariant)),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //       const SizedBox(width: 16),
+  //       Expanded(
+  //         child: OutlinedButton(
+  //           onPressed: () => _showErrorSnackbar('سيتم إضافة تسجيل الدخول عبر Apple قريباً'),
+  //           style: OutlinedButton.styleFrom(
+  //             padding: const EdgeInsets.symmetric(vertical: 12),
+  //             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+  //             side: BorderSide(color: AppTheme.outlineVariant),
+  //           ),
+  //           child: Row(
+  //             mainAxisAlignment: MainAxisAlignment.center,
+  //             children: [
+  //               const Icon(Icons.apple, size: 20),
+  //               const SizedBox(width: 8),
+  //               Text('آبل', style: TextStyle(color: AppTheme.onSurfaceVariant)),
+  //             ],
+  //           ),
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 
   Widget _buildSignupLink() {
     return Row(

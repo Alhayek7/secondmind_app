@@ -1,8 +1,9 @@
-﻿import 'package:get/get.dart';
+﻿import 'dart:async';
+import 'package:get/get.dart';
 import 'package:secondmind/data/models/task_model.dart';
 import 'package:secondmind/data/services/storage_service.dart';
 
-enum TaskFilter { all, inProgress, completed }
+enum TaskFilter { all, inProgress, completed, missed }
 
 extension TaskFilterExtension on TaskFilter {
   String get displayName {
@@ -10,6 +11,7 @@ extension TaskFilterExtension on TaskFilter {
       case TaskFilter.all: return 'الكل';
       case TaskFilter.inProgress: return 'قيد التنفيذ';
       case TaskFilter.completed: return 'مكتمل';
+      case TaskFilter.missed: return 'فائتة';
     }
   }
 }
@@ -17,31 +19,32 @@ extension TaskFilterExtension on TaskFilter {
 class TaskController extends GetxController {
   var tasks = <TaskModel>[].obs;
   var selectedFilter = TaskFilter.all.obs;
+  Timer? _autoUpdateTimer;
   
   List<TaskFilter> get filters => TaskFilter.values;
   
   List<TaskModel> get filteredTasks {
     switch (selectedFilter.value) {
-      case TaskFilter.all: return tasks;
-      case TaskFilter.inProgress: return tasks.where((t) => t.status != TaskStatus.completed).toList();
-      case TaskFilter.completed: return tasks.where((t) => t.status == TaskStatus.completed).toList();
+      case TaskFilter.all: 
+        return tasks;
+      case TaskFilter.inProgress: 
+        return tasks.where((t) => t.status == TaskStatus.inProgress).toList();
+      case TaskFilter.completed: 
+        return tasks.where((t) => t.status == TaskStatus.completed).toList();
+      case TaskFilter.missed:
+        return tasks.where((t) => t.status == TaskStatus.missed).toList();
     }
   }
   
-  // ============ إحصائيات حقيقية ============
+  // ============ إحصائيات ============
   
   int get totalTasks => tasks.length;
-  
   int get completedTasks => tasks.where((t) => t.status == TaskStatus.completed).length;
-  
-  int get pendingTasks => totalTasks - completedTasks;
-  
+  int get missedTasks => tasks.where((t) => t.status == TaskStatus.missed).length;
+  int get pendingTasks => totalTasks - completedTasks - missedTasks;
   int get completionRate => totalTasks > 0 ? (completedTasks / totalTasks * 100).round() : 0;
-  
   int get urgentTasks => tasks.where((t) => t.priority == TaskPriority.urgent).length;
-  
   int get totalWorkMinutes => tasks.fold(0, (sum, task) => sum + (task.timeSpent ?? 0));
-  
   double get totalWorkHours => (totalWorkMinutes / 60);
   
   double get focusRate {
@@ -49,7 +52,7 @@ class TaskController extends GetxController {
     final completedOnTime = tasks.where((t) => 
       t.status == TaskStatus.completed && 
       t.dueDate != null && 
-      t.dueDate!.isAfter(DateTime.now())
+      !t.dueDate!.isBefore(DateTime.now())
     ).length;
     return (completedOnTime / completedTasks * 100);
   }
@@ -124,31 +127,89 @@ class TaskController extends GetxController {
     return weekly;
   }
 
+  // ============ دورة الحياة ============
+  
   @override
   void onInit() {
     super.onInit();
     loadTasks();
+    startAutoUpdateTimer();
   }
+  
+  @override
+  void onClose() {
+    _autoUpdateTimer?.cancel();
+    super.onClose();
+  }
+  
+  // ============ تحديث تلقائي ذكي ============
+  
+  void autoUpdateTaskStatus() {
+    final now = DateTime.now();
+    bool hasChanges = false;
+    
+    for (var task in tasks) {
+      TaskStatus newStatus = task.status;
+      bool needsUpdate = false;
+      
+      // المهام الجديدة التي بدأ وقتها → قيد التنفيذ
+      if (task.status == TaskStatus.new_ && 
+          task.dueDate != null && 
+          task.dueDate!.isBefore(now)) {
+        newStatus = TaskStatus.inProgress;
+        needsUpdate = true;
+      }
+      
+      // المهام قيد التنفيذ التي انتهى وقتها → فائتة
+      if (task.status == TaskStatus.inProgress && 
+          task.dueDate != null && 
+          task.dueDate!.isBefore(now)) {
+        newStatus = TaskStatus.missed;
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate) {
+        final updatedTask = task.copyWith(status: newStatus);
+        updateTask(updatedTask);
+        hasChanges = true;
+      }
+    }
+    
+    if (hasChanges) {
+      loadTasks();
+    }
+  }
+  
+  void startAutoUpdateTimer() {
+    _autoUpdateTimer?.cancel();
+    _autoUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      autoUpdateTaskStatus();
+    });
+  }
+  
+  // ============ العمليات الأساسية ============
   
   void loadTasks() {
     tasks.value = StorageService.getAllTasks();
+    checkMissedTasks();
   }
   
   Future<void> addTask(TaskModel task) async {
     await StorageService.saveTask(task);
-    loadTasks();  // بدون await
+    loadTasks();
   }
   
   Future<void> updateTask(TaskModel task) async {
     await StorageService.updateTask(task);
-    loadTasks();  // بدون await
+    loadTasks();
   }
   
-  Future<void> updateTaskStatus(String taskId, TaskStatus currentStatus) async {
+  Future<void> updateTaskStatus(String taskId, TaskStatus currentStatus, {DateTime? newDueDate}) async {
     final task = tasks.firstWhere((t) => t.id == taskId);
     TaskStatus newStatus;
     DateTime? completedAt = task.completedAt;
     int? timeSpent = task.timeSpent;
+    DateTime? updatedDueDate = task.dueDate;
     
     switch (currentStatus) {
       case TaskStatus.new_:
@@ -163,18 +224,39 @@ class TaskController extends GetxController {
         newStatus = TaskStatus.new_;
         completedAt = null;
         break;
+      case TaskStatus.missed:
+        newStatus = TaskStatus.inProgress;
+        completedAt = null;
+        if (newDueDate != null) {
+          updatedDueDate = newDueDate;
+        }
+        break;
     }
     
     final updatedTask = task.copyWith(
       status: newStatus,
       completedAt: completedAt,
       timeSpent: timeSpent,
+      dueDate: updatedDueDate,
     );
+    
     await updateTask(updatedTask);
   }
   
   Future<void> deleteTask(String taskId) async {
     await StorageService.deleteTask(taskId);
-    loadTasks();  // بدون await
+    loadTasks();
+  }
+  
+  void checkMissedTasks() {
+    final now = DateTime.now();
+    for (var task in tasks) {
+      if (task.status == TaskStatus.new_ && 
+          task.dueDate != null && 
+          task.dueDate!.isBefore(now)) {
+        task.status = TaskStatus.missed;
+        updateTask(task);
+      }
+    }
   }
 }

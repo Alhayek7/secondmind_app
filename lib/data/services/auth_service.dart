@@ -1,34 +1,29 @@
-// lib/data/services/auth_service.dart
 import 'package:get/get.dart';
-import 'package:secondmind/core/routes/app_routes.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class AuthService extends GetxService {
   static AuthService get to => Get.find();
   
   final RxBool _isLoggedIn = false.obs;
-  
   bool get isLoggedIn => _isLoggedIn.value;
   
+  late Box _settingsBox;
+  
   Future<AuthService> init() async {
-    // التحقق من وجود جلسة سابقة (يمكن تخزينها في SharedPreferences)
-    _isLoggedIn.value = false; // مؤقتاً
+    _settingsBox = Hive.box('settings');
+    final savedLogin = _settingsBox.get('isLoggedIn', defaultValue: false);
+    _isLoggedIn.value = savedLogin;
     return this;
   }
   
-  void login() {
+  Future<void> login() async {
     _isLoggedIn.value = true;
+    await _settingsBox.put('isLoggedIn', true);
   }
   
-  void logout() {
+  Future<void> logout() async {
     _isLoggedIn.value = false;
-    Get.offAllNamed(AppRoutes.login);
-  }
-  
-  Future<bool> checkAuth() async {
-    if (!isLoggedIn) {
-      await Get.toNamed(AppRoutes.login);
-      return false;
-    }
-    return true;
+    await _settingsBox.put('isLoggedIn', false);
+    Get.offAllNamed('/login');
   }
 }

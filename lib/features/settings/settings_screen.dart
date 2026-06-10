@@ -1,13 +1,17 @@
 ﻿// lib/features/settings/settings_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
 import 'package:secondmind/core/routes/app_routes.dart';
 import 'package:secondmind/data/services/auth_service.dart';
 import 'package:secondmind/features/rate/rate_app_screen.dart';
+import 'package:secondmind/data/services/sound_service.dart';
+import 'package:secondmind/features/tasks/controllers/task_controller.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,19 +21,18 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  Box? _settingsBox;
+  bool _isLoading = true;
+  
   // إعدادات الإشعارات
   bool _smartReminders = true;
   bool _dailySummary = false;
   bool _aiMotivation = true;
   bool _smartContextual = false;
   
-  // إعدادات الذكاء الاصطناعي
-  String _selectedAIModel = 'GPT-4o-mini (OpenAI)';
-  final List<DropdownMenuItem<String>> _aiModelItems = const [
-    DropdownMenuItem(value: 'Gemini 1.5 Pro (Google)', child: Text('Gemini 1.5 Pro (Google)')),
-    DropdownMenuItem(value: 'GPT-4o-mini (OpenAI)', child: Text('GPT-4o-mini (OpenAI)')),
-    DropdownMenuItem(value: 'Claude 3.5 Sonnet (Anthropic)', child: Text('Claude 3.5 Sonnet (Anthropic)')),
-  ];
+  // إعدادات الصوت
+  double _soundVolume = 0.7;
+  bool _soundEnabled = true;
   
   // إعدادات المظهر
   bool _darkMode = false;
@@ -37,18 +40,174 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   // إعدادات الخصوصية
   bool _analyticsEnabled = true;
-  bool _backupEnabled = false;
   
   // إعدادات أخرى
-  String _appVersion = '2.4.0-stable';
-  String _lastSync = 'منذ 3 ساعات';
+  String _appVersion = '1.0.0';
+  String _lastSync = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeSettings();
+    _getAppVersion();
+  }
+
+  Future<void> _initializeSettings() async {
+    _settingsBox = await Hive.openBox('settings');
+    await _loadSettings();
+    await _updateLastSync();
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadSettings() async {
+    if (_settingsBox == null) return;
+    setState(() {
+      _smartReminders = _settingsBox!.get('smartReminders', defaultValue: true);
+      _dailySummary = _settingsBox!.get('dailySummary', defaultValue: false);
+      _aiMotivation = _settingsBox!.get('aiMotivation', defaultValue: true);
+      _smartContextual = _settingsBox!.get('smartContextual', defaultValue: false);
+      _soundVolume = _settingsBox!.get('soundVolume', defaultValue: 0.7);
+      _soundEnabled = _settingsBox!.get('soundEnabled', defaultValue: true);
+      _darkMode = _settingsBox!.get('darkMode', defaultValue: false);
+      _selectedLanguage = _settingsBox!.get('language', defaultValue: 'ar');
+      _analyticsEnabled = _settingsBox!.get('analyticsEnabled', defaultValue: true);
+    });
+    
+    if (_darkMode) {
+      Get.changeThemeMode(ThemeMode.dark);
+    } else {
+      Get.changeThemeMode(ThemeMode.light);
+    }
+    
+    await SoundService.setVolume(_soundVolume);
+    if (!_soundEnabled) {
+      await SoundService.setVolume(0);
+    }
+  }
+
+  Future<void> _saveSetting(String key, dynamic value) async {
+    if (_settingsBox != null) {
+      await _settingsBox!.put(key, value);
+    }
+  }
+
+  void _getAppVersion() {
+    _appVersion = '1.0.0';
+  }
+
+  Future<void> _updateLastSync() async {
+    if (_settingsBox == null) return;
+    final lastSync = _settingsBox!.get('lastSync');
+    if (lastSync != null) {
+      final date = DateTime.parse(lastSync);
+      final difference = DateTime.now().difference(date);
+      if (difference.inHours < 1) {
+        _lastSync = 'منذ ${difference.inMinutes} دقيقة';
+      } else if (difference.inDays < 1) {
+        _lastSync = 'منذ ${difference.inHours} ساعة';
+      } else {
+        _lastSync = 'منذ ${difference.inDays} يوم';
+      }
+    } else {
+      _lastSync = 'لم تتم المزامنة بعد';
+    }
+  }
+
+  void _showSnackbar(String message, {bool isError = false}) {
+    Get.snackbar(
+      isError ? 'خطأ' : 'تنبيه',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 2),
+      backgroundColor: isError ? AppTheme.errorContainer : AppTheme.primaryContainer,
+      colorText: isError ? AppTheme.onErrorContainer : AppTheme.onPrimaryContainer,
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    Get.snackbar(
+      'نجاح',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 2),
+      backgroundColor: AppTheme.statusCompleted,
+      colorText: Colors.white,
+    );
+  }
+
+  void _toggleDarkMode(bool value) async {
+    setState(() => _darkMode = value);
+    await _saveSetting('darkMode', value);
+    Get.changeThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+    _showSnackbar(value ? 'تم تفعيل الوضع المظلم' : 'تم تفعيل الوضع الفاتح');
+  }
+
+  void _toggleSound(bool value) async {
+    setState(() => _soundEnabled = value);
+    await _saveSetting('soundEnabled', value);
+    if (value) {
+      await SoundService.setVolume(_soundVolume);
+      await SoundService.playNotificationSound();
+    } else {
+      await SoundService.setVolume(0);
+    }
+    _showSnackbar(value ? 'تم تفعيل الأصوات' : 'تم إيقاف الأصوات');
+  }
+
+  void _changeVolume(double value) async {
+    setState(() => _soundVolume = value);
+    await _saveSetting('soundVolume', value);
+    if (_soundEnabled) {
+      await SoundService.setVolume(value);
+      await SoundService.playNotificationSound();
+    }
+  }
+
+  void _shareApp() async {
+    const shareText = '''
+📱 *SecondMind* - عقلك الثاني الذي لا ينسى
+
+تطبيق إدارة مهام بالذكاء الاصطناعي يساعدك على:
+✅ تنظيم مهامك اليومية
+🤖 استخراج التفاصيل من النصوص والصور
+📊 تحليل إنتاجيتك
+🎯 تحسين تركيزك
+📅 تقويم ذكي للمهام
+🔔 إشعارات وتذكيرات ذكية
+
+📥 حمل التطبيق الآن:
+https://secondmind.app/download
+    ''';
+    await Share.share(shareText);
+    _showSuccessSnackbar('تم مشاركة التطبيق بنجاح');
+  }
+
+  Future<void> _clearAllData() async {
+    try {
+      final taskController = Get.find<TaskController>();
+      for (var task in taskController.tasks) {
+        await taskController.deleteTask(task.id);
+      }
+      
+      if (_settingsBox != null) {
+        await _settingsBox!.clear();
+      }
+      await _loadSettings();
+      
+      _showSuccessSnackbar('تم مسح جميع البيانات بنجاح');
+    } catch (e) {
+      _showSnackbar('حدث خطأ أثناء مسح البيانات: $e', isError: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: _buildAppBar(),
-      body: _buildBody(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildBody(),
     );
   }
 
@@ -69,27 +228,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // قسم الذكاء الاصطناعي
-        _buildSection('نموذج الذكاء الاصطناعي', Icons.psychology_outlined, _buildAIModelCard()),
+        _buildSection('الصوت', Icons.volume_up, _buildSoundCard()),
         const SizedBox(height: 20),
-        
-        // قسم الإشعارات الذكية
         _buildSection('الإشعارات الذكية', Icons.notifications_outlined, _buildNotificationsCard()),
         const SizedBox(height: 20),
-        
-        // قسم المظهر واللغة
         _buildSection('المظهر واللغة', Icons.palette_outlined, _buildAppearanceCard()),
         const SizedBox(height: 20),
-        
-        // قسم التكامل والربط
-        _buildSection('التكامل والربط', Icons.hub_outlined, _buildIntegrationsCard()),
+        _buildSection('البيانات', Icons.storage, _buildDataCard()),
         const SizedBox(height: 20),
-        
-        // قسم الخصوصية والأمان
         _buildSection('الخصوصية والأمان', Icons.privacy_tip_outlined, _buildPrivacyCard()),
         const SizedBox(height: 20),
-        
-        // قسم عن التطبيق
         _buildSection('عن التطبيق', Icons.info_outline, _buildAppInfoCard()),
         const SizedBox(height: 30),
       ],
@@ -104,7 +252,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: AppTheme.primary),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 16, color: AppTheme.primary),
+              ),
               const SizedBox(width: 8),
               Text(title, style: AppTheme.labelMd.copyWith(color: AppTheme.outline, letterSpacing: 0.5)),
             ],
@@ -117,9 +272,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   //============================================================================
-  // AI MODEL CARD
+  // SOUND CARD
   //============================================================================
-  Widget _buildAIModelCard() {
+  Widget _buildSoundCard() {
     return Card(
       color: AppTheme.surfaceContainerLowest,
       elevation: 0,
@@ -127,47 +282,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.3)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('اختر المحرك المفضل', style: AppTheme.bodyMd),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedAIModel,
-                  isExpanded: true,
-                  icon: Icon(Icons.expand_more, color: AppTheme.outline),
-                  items: _aiModelItems,
-                  onChanged: (value) {
-                    if (value != null) setState(() => _selectedAIModel = value);
-                    _showSnackbar('تم تغيير نموذج الذكاء الاصطناعي');
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.info_outline, size: 14, color: AppTheme.outline),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'يتم توفير التوازن بين السرعة والدقة افتراضياً',
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: Text('تفعيل الأصوات', style: AppTheme.bodyLg),
+            subtitle: Text('تشغيل الأصوات والإشعارات الصوتية', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            value: _soundEnabled,
+            onChanged: _toggleSound,
+            activeColor: AppTheme.primary,
+            secondary: Icon(_soundEnabled ? Icons.volume_up : Icons.volume_off, color: AppTheme.primary),
+          ),
+          if (_soundEnabled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                children: [
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.volume_down, size: 20, color: AppTheme.outline),
+                      Expanded(
+                        child: Slider(
+                          value: _soundVolume,
+                          onChanged: _changeVolume,
+                          activeColor: AppTheme.primary,
+                          inactiveColor: AppTheme.outlineVariant,
+                          min: 0,
+                          max: 1,
+                        ),
+                      ),
+                      Icon(Icons.volume_up, size: 20, color: AppTheme.outline),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'مستوى الصوت: ${(_soundVolume * 100).round()}%',
                     style: AppTheme.labelSm.copyWith(color: AppTheme.outline),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -189,28 +345,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'تذكيرات ذكية',
             subtitle: 'تذكيرات تعتمد على سياق يومك',
             value: _smartReminders,
-            onChanged: (v) => setState(() => _smartReminders = v),
+            onChanged: (v) async {
+              setState(() => _smartReminders = v);
+              await _saveSetting('smartReminders', v);
+              _showSnackbar(v ? 'تم تفعيل التذكيرات الذكية' : 'تم إيقاف التذكيرات الذكية');
+            },
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _buildSwitchTile(
             title: 'الملخص اليومي',
             subtitle: 'موجز مسائي لإنجازات اليوم',
             value: _dailySummary,
-            onChanged: (v) => setState(() => _dailySummary = v),
+            onChanged: (v) async {
+              setState(() => _dailySummary = v);
+              await _saveSetting('dailySummary', v);
+            },
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _buildSwitchTile(
             title: 'رسائل تحفيزية بالذكاء الاصطناعي',
             subtitle: 'تلقي رسائل مشجعة مخصصة لأهدافك',
             value: _aiMotivation,
-            onChanged: (v) => setState(() => _aiMotivation = v),
+            onChanged: (v) async {
+              setState(() => _aiMotivation = v);
+              await _saveSetting('aiMotivation', v);
+            },
           ),
           const Divider(height: 1, indent: 16, endIndent: 16),
           _buildSwitchTile(
             title: 'تذكيرات سياقية ذكية',
             subtitle: 'تذكيرات تتكيف مع جدولك وموقعك',
             value: _smartContextual,
-            onChanged: (v) => setState(() => _smartContextual = v),
+            onChanged: (v) async {
+              setState(() => _smartContextual = v);
+              await _saveSetting('smartContextual', v);
+            },
           ),
         ],
       ),
@@ -259,57 +428,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: Column(
         children: [
-          _buildThemeTile(),
+          ListTile(
+            leading: Icon(Icons.dark_mode, color: AppTheme.primary),
+            title: Text('الوضع المظلم', style: AppTheme.bodyLg),
+            subtitle: Text('واجهة داكنة مريحة للعين', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Switch(
+              value: _darkMode,
+              onChanged: _toggleDarkMode,
+              activeColor: AppTheme.primary,
+            ),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildLanguageTile(),
+          ListTile(
+            leading: Icon(Icons.language, color: AppTheme.primary),
+            title: Text('اللغة', style: AppTheme.bodyLg),
+            subtitle: Text('اختر لغة التطبيق', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: DropdownButton<String>(
+              value: _selectedLanguage,
+              underline: const SizedBox(),
+              items: const [
+                DropdownMenuItem(value: 'ar', child: Text('العربية')),
+                DropdownMenuItem(value: 'en', child: Text('English')),
+              ],
+              onChanged: (value) async {
+                if (value != null) {
+                  setState(() => _selectedLanguage = value);
+                  await _saveSetting('language', value);
+                  _showSnackbar('سيتم تغيير اللغة بعد إعادة تشغيل التطبيق');
+                }
+              },
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildThemeTile() {
-    return ListTile(
-      leading: Icon(Icons.dark_mode, color: AppTheme.primary),
-      title: Text('الوضع المظلم', style: AppTheme.bodyLg),
-      subtitle: Text('واجهة داكنة مريحة للعين', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-      trailing: Switch(
-        value: _darkMode,
-        onChanged: (value) {
-          setState(() => _darkMode = value);
-          Get.changeThemeMode(value ? ThemeMode.dark : ThemeMode.light);
-          _showSnackbar(value ? 'تم تفعيل الوضع المظلم' : 'تم تفعيل الوضع الفاتح');
-        },
-        activeColor: AppTheme.primary,
-      ),
-    );
-  }
-
-  Widget _buildLanguageTile() {
-    return ListTile(
-      leading: Icon(Icons.language, color: AppTheme.primary),
-      title: Text('اللغة', style: AppTheme.bodyLg),
-      subtitle: Text('اختر لغة التطبيق', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-      trailing: DropdownButton<String>(
-        value: _selectedLanguage,
-        underline: const SizedBox(),
-        items: const [
-          DropdownMenuItem(value: 'ar', child: Text('العربية')),
-          DropdownMenuItem(value: 'en', child: Text('English')),
-        ],
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _selectedLanguage = value);
-            _showSnackbar('سيتم تغيير اللغة بعد إعادة تشغيل التطبيق');
-          }
-        },
-      ),
-    );
-  }
-
   //============================================================================
-  // INTEGRATIONS CARD
+  // DATA CARD
   //============================================================================
-  Widget _buildIntegrationsCard() {
+  Widget _buildDataCard() {
     return Card(
       color: AppTheme.surfaceContainerLowest,
       elevation: 0,
@@ -317,36 +475,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(color: AppTheme.outlineVariant.withValues(alpha: 0.3)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _showSnackbar('سيتم إضافة ربط تقويم Google قريباً'),
-                icon: const Icon(Icons.calendar_month),
-                label: const Text('الربط مع تقويم Google'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryContainer,
-                  foregroundColor: AppTheme.onPrimaryContainer,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'خيارات التصدير',
+              style: AppTheme.labelMd.copyWith(
+                color: AppTheme.outline,
+                letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.sync, size: 14, color: AppTheme.outline),
-                const SizedBox(width: 6),
-                Text(_lastSync, style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-              ],
-            ),
-          ],
+          ),
+          _buildExportOption(
+            icon: Icons.code,
+            title: 'تصدير كـ JSON',
+            subtitle: 'ملف JSON للنسخ الاحتياطي',
+            color: Colors.blue,
+            onTap: _exportAsJSON,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _buildExportOption(
+            icon: Icons.table_chart,
+            title: 'تصدير كـ CSV',
+            subtitle: 'ملف CSV للاستخدام في Excel',
+            color: Colors.green,
+            onTap: _exportAsCSV,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _buildExportOption(
+            icon: Icons.picture_as_pdf,
+            title: 'تصدير كـ HTML',
+            subtitle: 'تقرير HTML قابل للطباعة',
+            color: Colors.red,
+            onTap: _exportAsPDF,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _buildExportOption(
+            icon: Icons.share,
+            title: 'مشاركة الملخص',
+            subtitle: 'مشاركة ملخص مهامك عبر التطبيقات',
+            color: Colors.orange,
+            onTap: _shareAppData,
+          ),
+          const Divider(height: 1, indent: 16, endIndent: 16),
+          _buildExportOption(
+            icon: Icons.delete_sweep,
+            title: 'مسح جميع البيانات',
+            subtitle: 'حذف جميع المهام والإعدادات نهائياً',
+            color: AppTheme.error,
+            onTap: _showClearDataDialog,
+            isDestructive: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 45,
+        height: 45,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 24),
+      ),
+      title: Text(
+        title,
+        style: AppTheme.bodyLg.copyWith(
+          color: isDestructive ? AppTheme.error : null,
         ),
       ),
+      subtitle: Text(
+        subtitle,
+        style: AppTheme.labelSm.copyWith(color: AppTheme.outline),
+      ),
+      trailing: Icon(
+        Icons.chevron_left,
+        color: isDestructive ? AppTheme.error : AppTheme.outline,
+      ),
+      onTap: onTap,
     );
   }
 
@@ -367,41 +586,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'إرسال بيانات الاستخدام',
             subtitle: 'ساعدنا في تحسين التطبيق',
             value: _analyticsEnabled,
-            onChanged: (v) => setState(() => _analyticsEnabled = v),
+            onChanged: (v) async {
+              setState(() => _analyticsEnabled = v);
+              await _saveSetting('analyticsEnabled', v);
+            },
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildSwitchTile(
-            title: 'النسخ الاحتياطي السحابي',
-            subtitle: 'مزامنة بياناتك عبر الأجهزة',
-            value: _backupEnabled,
-            onChanged: (v) => setState(() => _backupEnabled = v),
-          ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildExportDataTile(),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildClearDataTile(),
         ],
       ),
-    );
-  }
-
-  Widget _buildExportDataTile() {
-    return ListTile(
-      leading: Icon(Icons.download_outlined, color: AppTheme.primary),
-      title: Text('تصدير البيانات', style: AppTheme.bodyLg),
-      subtitle: Text('تصدير جميع مهامك وبياناتك', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-      trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
-      onTap: () => _showSnackbar('سيتم إضافة تصدير البيانات قريباً'),
-    );
-  }
-
-  Widget _buildClearDataTile() {
-    return ListTile(
-      leading: Icon(Icons.delete_sweep_outlined, color: AppTheme.error),
-      title: Text('مسح جميع البيانات', style: AppTheme.bodyLg.copyWith(color: AppTheme.error)),
-      subtitle: Text('حذف جميع المهام والإعدادات', style: AppTheme.labelSm.copyWith(color: AppTheme.error.withValues(alpha: 0.7))),
-      trailing: Icon(Icons.chevron_left, color: AppTheme.error),
-      onTap: () => _showClearDataDialog(),
     );
   }
 
@@ -418,88 +609,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       child: Column(
         children: [
-          _buildInfoTile(Icons.star_outline, 'قيم التطبيق', 'قيّمنا في المتجر', () => Get.to(() => const RateAppScreen())),
+          ListTile(
+            leading: Icon(Icons.star_outline, color: AppTheme.primary),
+            title: Text('قيم التطبيق', style: AppTheme.bodyLg),
+            subtitle: Text('قيّمنا في المتجر', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
+            onTap: () => Get.to(() => const RateAppScreen()),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildInfoTile(Icons.share_outlined, 'شارك التطبيق', 'أرسل التطبيق لأصدقائك', _shareApp),
+          ListTile(
+            leading: Icon(Icons.share_outlined, color: AppTheme.primary),
+            title: Text('شارك التطبيق', style: AppTheme.bodyLg),
+            subtitle: Text('أرسل التطبيق لأصدقائك', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
+            onTap: _shareApp,
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildInfoTile(Icons.description_outlined, 'شروط الخدمة', 'اقرأ شروط الاستخدام', () => Get.toNamed(AppRoutes.terms)),
+          ListTile(
+            leading: Icon(Icons.description_outlined, color: AppTheme.primary),
+            title: Text('شروط الخدمة', style: AppTheme.bodyLg),
+            subtitle: Text('اقرأ شروط الاستخدام', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
+            onTap: () => Get.toNamed(AppRoutes.terms),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildInfoTile(Icons.privacy_tip_outlined, 'سياسة الخصوصية', 'كيف نتعامل مع بياناتك', () => Get.toNamed(AppRoutes.privacy)),
+          ListTile(
+            leading: Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
+            title: Text('سياسة الخصوصية', style: AppTheme.bodyLg),
+            subtitle: Text('كيف نتعامل مع بياناتك', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
+            onTap: () => Get.toNamed(AppRoutes.privacy),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildVersionTile(),
+          ListTile(
+            leading: Icon(Icons.info_outline, color: AppTheme.outline),
+            title: Text('إصدار التطبيق', style: AppTheme.bodyLg),
+            subtitle: Text(_appVersion, style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryContainer.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text('أحدث إصدار', style: AppTheme.labelSm.copyWith(color: AppTheme.primary)),
+            ),
+          ),
           const Divider(height: 1, indent: 16, endIndent: 16),
-          _buildLogoutTile(),
+          ListTile(
+            leading: Icon(Icons.logout, color: AppTheme.error),
+            title: Text('تسجيل الخروج', style: AppTheme.bodyLg.copyWith(color: AppTheme.error)),
+            subtitle: Text('تسجيل الخروج من حسابك', style: AppTheme.labelSm.copyWith(color: AppTheme.error.withValues(alpha: 0.7))),
+            trailing: Icon(Icons.chevron_left, color: AppTheme.error),
+            onTap: _showLogoutDialog,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildInfoTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: AppTheme.primary),
-      title: Text(title, style: AppTheme.bodyLg),
-      subtitle: Text(subtitle, style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-      trailing: Icon(Icons.chevron_left, color: AppTheme.outline),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildVersionTile() {
-    return ListTile(
-      leading: Icon(Icons.info_outline, color: AppTheme.outline),
-      title: Text('إصدار التطبيق', style: AppTheme.bodyLg),
-      subtitle: Text(_appVersion, style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppTheme.primaryContainer.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text('أحدث إصدار', style: AppTheme.labelSm.copyWith(color: AppTheme.primary)),
-      ),
-    );
-  }
-
-  Widget _buildLogoutTile() {
-    return ListTile(
-      leading: Icon(Icons.logout, color: AppTheme.error),
-      title: Text('تسجيل الخروج', style: AppTheme.bodyLg.copyWith(color: AppTheme.error)),
-      subtitle: Text('تسجيل الخروج من حسابك', style: AppTheme.labelSm.copyWith(color: AppTheme.error.withValues(alpha: 0.7))),
-      trailing: Icon(Icons.chevron_left, color: AppTheme.error),
-      onTap: _showLogoutDialog,
-    );
-  }
-
   //============================================================================
-  // DIALOGS & ACTIONS
+  // DIALOGS
   //============================================================================
-  void _showSnackbar(String message) {
-    Get.snackbar(
-      'تنبيه',
-      message,
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 2),
-      backgroundColor: AppTheme.primaryContainer,
-      colorText: AppTheme.onPrimaryContainer,
-    );
-  }
-
-  void _shareApp() async {
-    const shareText = '''
-📱 *SecondMind* - عقلك الثاني الذي لا ينسى
-
-تطبيق إدارة مهام بالذكاء الاصطناعي يساعدك على:
-✅ تنظيم مهامك اليومية
-🤖 استخراج التفاصيل من النصوص والصور
-📊 تحليل إنتاجيتك
-🎯 تحسين تركيزك
-
-📥 حمل التطبيق الآن:
-https://secondmind.app/download
-    ''';
-    await Share.share(shareText);
-  }
-
   void _showClearDataDialog() {
     Get.dialog(
       AlertDialog(
@@ -508,11 +678,14 @@ https://secondmind.app/download
         title: Text('مسح جميع البيانات', style: AppTheme.headlineMd.copyWith(color: AppTheme.error)),
         content: const Text('هل أنت متأكد؟ سيتم حذف جميع مهامك وإعداداتك نهائياً.'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
+          ),
           ElevatedButton(
             onPressed: () {
               Get.back();
-              _showSnackbar('تم مسح جميع البيانات');
+              _clearAllData();
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
             child: const Text('مسح'),
@@ -530,7 +703,10 @@ https://secondmind.app/download
         title: Text('تسجيل الخروج', style: AppTheme.headlineMd.copyWith(color: AppTheme.error)),
         content: const Text('هل أنت متأكد من رغبتك في تسجيل الخروج؟'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
+          ),
           ElevatedButton(
             onPressed: () {
               Get.back();
@@ -544,4 +720,203 @@ https://secondmind.app/download
     );
   }
 
+  //============================================================================
+  // EXPORT FUNCTIONS
+  //============================================================================
+
+  Future<void> _exportAsJSON() async {
+    try {
+      final taskController = Get.find<TaskController>();
+      final tasks = taskController.tasks;
+      
+      final exportData = {
+        'appName': 'SecondMind',
+        'exportDate': DateTime.now().toIso8601String(),
+        'version': _appVersion,
+        'totalTasks': tasks.length,
+        'stats': {
+          'completedTasks': taskController.completedTasks,
+          'completionRate': taskController.completionRate,
+          'missedTasks': taskController.missedTasks,
+          'urgentTasks': taskController.urgentTasks,
+        },
+        'tasks': tasks.map((task) => {
+          'id': task.id,
+          'title': task.title,
+          'description': task.description,
+          'dueDate': task.dueDate?.toIso8601String(),
+          'status': task.status.index,
+          'priority': task.priority.index,
+          'category': task.category.index,
+          'createdAt': task.createdAt.toIso8601String(),
+          'completedAt': task.completedAt?.toIso8601String(),
+          'location': task.location,
+          'attendanceType': task.attendanceType?.index,
+          'meetingLink': task.meetingLink,
+          'organizer': task.organizer,
+          'contactPhone': task.contactPhone,
+          'contactEmail': task.contactEmail,
+          'registrationLink': task.registrationLink,
+          'fee': task.fee,
+          'additionalNotes': task.additionalNotes,
+        }).toList(),
+      };
+      
+      final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'secondmind_export_${DateTime.now().millisecondsSinceEpoch}.json';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(jsonString);
+      
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '📊 تصدير بيانات SecondMind (JSON)\n\nتم تصدير ${tasks.length} مهمة بنجاح',
+      );
+      
+      _showSuccessSnackbar('تم تصدير ${tasks.length} مهمة بتنسيق JSON');
+    } catch (e) {
+      _showSnackbar('حدث خطأ أثناء تصدير البيانات: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportAsCSV() async {
+    try {
+      final taskController = Get.find<TaskController>();
+      final tasks = taskController.tasks;
+      
+      String csvText = 'ID,العنوان,الوصف,التاريخ,الحالة,الأولوية,التصنيف,المكان,الجهة المنظمة,الرسوم,تاريخ الإنشاء\n';
+      
+      for (var task in tasks) {
+        csvText += '"${task.id}","${_escapeCSV(task.title)}","${_escapeCSV(task.description ?? '')}",';
+        csvText += '"${task.dueDate ?? ''}","${task.status.index}","${task.priority.index}","${task.category.index}",';
+        csvText += '"${_escapeCSV(task.location ?? '')}","${_escapeCSV(task.organizer ?? '')}","${_escapeCSV(task.fee ?? '')}","${task.createdAt}"\n';
+      }
+      
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'secondmind_export_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(csvText, encoding: utf8);
+      
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '📊 تصدير بيانات SecondMind (CSV)\n\nيمكن فتح الملف في Excel أو Google Sheets',
+      );
+      
+      _showSuccessSnackbar('تم تصدير ${tasks.length} مهمة بتنسيق CSV');
+    } catch (e) {
+      _showSnackbar('حدث خطأ أثناء تصدير البيانات: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportAsPDF() async {
+    try {
+      final taskController = Get.find<TaskController>();
+      final tasks = taskController.tasks;
+      
+      String htmlContent = '''
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>SecondMind - تصدير المهام</title>
+        <style>
+          body { font-family: Arial, sans-serif; direction: rtl; padding: 20px; }
+          h1 { color: #4A6458; text-align: center; }
+          .stats { background: #f5f5f5; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+          .task { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+          .task-title { font-size: 18px; font-weight: bold; color: #4A6458; }
+          .task-detail { margin: 5px 0; color: #666; }
+        </style>
+      </head>
+      <body>
+        <h1>📊 SecondMind - تقرير المهام</h1>
+        <div class="stats">
+          <h3>📈 ملخص الإحصائيات</h3>
+          <p>📅 تاريخ التصدير: ${DateTime.now()}</p>
+          <p>📋 إجمالي المهام: ${tasks.length}</p>
+          <p>✅ المهام المكتملة: ${taskController.completedTasks}</p>
+          <p>📊 نسبة الإنجاز: ${taskController.completionRate}%</p>
+          <p>⚠️ المهام الفائتة: ${taskController.missedTasks}</p>
+          <p>🔴 المهام العاجلة: ${taskController.urgentTasks}</p>
+        </div>
+      ''';
+      
+      for (var task in tasks) {
+        htmlContent += '''
+        <div class="task">
+          <div class="task-title">📌 ${_escapeHtml(task.title)}</div>
+          <div class="task-detail">📝 ${_escapeHtml(task.description ?? 'لا يوجد وصف')}</div>
+          <div class="task-detail">📅 التاريخ: ${task.dueDate ?? 'غير محدد'}</div>
+        </div>
+        ''';
+      }
+      
+      htmlContent += '''
+      </body>
+      </html>
+      ''';
+      
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'secondmind_export_${DateTime.now().millisecondsSinceEpoch}.html';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(htmlContent, encoding: utf8);
+      
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '📊 تصدير بيانات SecondMind (HTML)\n\nيمكن فتح الملف في أي متصفح',
+      );
+      
+      _showSuccessSnackbar('تم تصدير ${tasks.length} مهمة كتقرير HTML');
+    } catch (e) {
+      _showSnackbar('حدث خطأ أثناء تصدير التقرير: $e', isError: true);
+    }
+  }
+
+  String _escapeCSV(String text) {
+    return text.replaceAll('"', '""').replaceAll('\n', ' ');
+  }
+
+  String _escapeHtml(String text) {
+    return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+  }
+
+  Future<void> _shareAppData() async {
+    try {
+      final taskController = Get.find<TaskController>();
+      final tasks = taskController.tasks;
+      
+      String shareText = '📱 *SecondMind* - ملخص مهامي\n\n';
+      shareText += '📅 التاريخ: ${DateTime.now()}\n';
+      shareText += '📊 إجمالي المهام: ${tasks.length}\n';
+      shareText += '✅ المهام المكتملة: ${taskController.completedTasks}\n';
+      shareText += '📈 نسبة الإنجاز: ${taskController.completionRate}%\n';
+      shareText += '⚠️ المهام الفائتة: ${taskController.missedTasks}\n\n';
+      shareText += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      shareText += '📌 *قائمة المهام:*\n\n';
+      
+      for (var task in tasks.take(10)) {
+        shareText += '• ${task.title}\n';
+        if (task.dueDate != null) {
+          shareText += '  📅 ${task.dueDate}\n';
+        }
+      }
+      
+      if (tasks.length > 10) {
+        shareText += '\n... و ${tasks.length - 10} مهام أخرى\n';
+      }
+      
+      shareText += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      shareText += '📱 SecondMind - عقلك الثاني الذي لا ينسى\n';
+      
+      await Share.share(shareText);
+      _showSuccessSnackbar('تم مشاركة ملخص المهام بنجاح');
+    } catch (e) {
+      _showSnackbar('حدث خطأ أثناء المشاركة: $e', isError: true);
+    }
+  }
 }

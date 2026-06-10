@@ -9,7 +9,7 @@ class TaskCard extends StatefulWidget {
   final VoidCallback onStatusChanged;
   final VoidCallback onDelete;
   final VoidCallback onTap;
-  
+
   const TaskCard({
     super.key,
     required this.task,
@@ -22,7 +22,8 @@ class TaskCard extends StatefulWidget {
   State<TaskCard> createState() => _TaskCardState();
 }
 
-class _TaskCardState extends State<TaskCard> with SingleTickerProviderStateMixin {
+class _TaskCardState extends State<TaskCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 
@@ -37,22 +38,35 @@ class _TaskCardState extends State<TaskCard> with SingleTickerProviderStateMixin
         return 'قيد التنفيذ';
       case TaskStatus.completed:
         return 'مكتمل';
+      case TaskStatus.missed:
+        return 'فائتة';
     }
   }
 
   Color _getStatusColor() {
-    switch (widget.task.priority) {
-      case TaskPriority.urgent:
-        return AppTheme.statusUrgent;
-      case TaskPriority.high:
+    // ✅ الأولوية لها الأولوية على الحالة
+    if (widget.task.priority == TaskPriority.urgent) {
+      return AppTheme.statusUrgent;
+    }
+    
+    // ✅ ثم نتحقق من الحالة
+    switch (widget.task.status) {
+      case TaskStatus.completed:
+        return AppTheme.statusCompleted;
+      case TaskStatus.inProgress:
         return AppTheme.statusPending;
+      case TaskStatus.missed:
+        return AppTheme.error;
       default:
         return AppTheme.primary;
     }
   }
-  
+
   String _getStatusText() {
-    if (widget.task.priority == TaskPriority.urgent) return 'عاجل';
+    // ✅ الأولوية العاجلة لها نص خاص
+    if (widget.task.priority == TaskPriority.urgent) {
+      return 'عاجل';
+    }
     return _getStatusName(widget.task.status);
   }
 
@@ -71,7 +85,7 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📱 SecondMind - عقلك الثاني الذي لا ينسى
     ''';
-    
+
     await Share.share(shareText);
   }
 
@@ -127,7 +141,7 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
                       ],
                     ),
                     const SizedBox(height: 12),
-                    
+
                     // Title
                     Text(
                       widget.task.title,
@@ -138,7 +152,7 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    
+
                     if (widget.task.description != null) ...[
                       const SizedBox(height: 6),
                       Text(
@@ -148,16 +162,16 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    
+
                     const SizedBox(height: 12),
-                    
+
                     // Date
                     if (widget.task.dueDate != null)
                       _buildInfoRow(
                         icon: Icons.calendar_today_outlined,
                         text: _formatDate(widget.task.dueDate!),
                       ),
-                    
+
                     // Location (if exists)
                     if (widget.task.location != null)
                       _buildInfoRow(
@@ -167,7 +181,7 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
                   ],
                 ),
               ),
-              
+
               // Action Button
               _buildActionButton(),
             ],
@@ -258,6 +272,36 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
   }
 
   Widget _buildActionButton() {
+    // ✅ المهام الفائتة لا يمكن إكمالها مباشرة، تحتاج إعادة فتح
+    if (widget.task.status == TaskStatus.missed) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.error.withValues(alpha: 0.1),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(20),
+            bottomRight: Radius.circular(20),
+          ),
+        ),
+        child: Center(
+          child: ElevatedButton.icon(
+            onPressed: widget.onStatusChanged,
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('إعادة فتح المهمة'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (widget.task.status == TaskStatus.completed) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -271,11 +315,13 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
         child: TextButton.icon(
           onPressed: widget.onStatusChanged,
           icon: Icon(Icons.refresh, size: 18, color: AppTheme.onSurfaceVariant),
-          label: Text('إعادة فتح', style: AppTheme.labelMd.copyWith(color: AppTheme.onSurfaceVariant)),
+          label: Text('إعادة فتح',
+              style:
+                  AppTheme.labelMd.copyWith(color: AppTheme.onSurfaceVariant)),
         ),
       );
     }
-    
+
     if (widget.task.status == TaskStatus.inProgress) {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -296,13 +342,14 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
               foregroundColor: AppTheme.onPrimary,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25)),
             ),
           ),
         ),
       );
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
@@ -321,7 +368,8 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
             backgroundColor: AppTheme.primary,
             foregroundColor: AppTheme.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
           ),
         ),
       ),
@@ -333,7 +381,20 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
   }
 
   String _getMonthName(int month) {
-    const months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const months = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر'
+    ];
     return months[month - 1];
   }
 }

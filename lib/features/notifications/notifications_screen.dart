@@ -1,10 +1,12 @@
-// lib/features/notifications/notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
 import 'package:secondmind/core/routes/app_routes.dart';
 import 'package:secondmind/data/models/task_model.dart';
 import 'package:secondmind/features/tasks/controllers/task_controller.dart';
+import 'package:secondmind/data/services/event_service.dart';
+import 'package:secondmind/data/models/event_model.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -42,14 +44,13 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildRemindersTab(),
-                _buildAIInsightsTab(),
+                _buildEventsTab(),      // ✅ تبويب الأحداث (جديد)
+                _buildAIInsightsTab(),   // ✅ تبويب توصيات الذكاء الاصطناعي
               ],
             ),
           ),
         ],
       ),
-      // bottomNavigationBar: null,  // لا يوجد شريط سفلي
     );
   }
 
@@ -66,12 +67,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       ),
       actions: [
         TextButton.icon(
-          onPressed: () {
-            _showMarkAllReadDialog();
-          },
-          icon: Icon(Icons.done_all, size: 18, color: AppTheme.primary),
+          onPressed: () => _showClearEventsDialog(),
+          icon: Icon(Icons.delete_sweep, size: 18, color: AppTheme.primary),
           label: Text(
-            'تحديد الكل كمقروء',
+            'مسح الكل',
             style: AppTheme.labelMd.copyWith(color: AppTheme.primary),
           ),
         ),
@@ -99,34 +98,138 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         labelStyle: AppTheme.labelMd.copyWith(fontWeight: FontWeight.w600),
         unselectedLabelStyle: AppTheme.labelMd,
         tabs: const [
-          Tab(text: 'التذكيرات'),
-          Tab(text: 'توصيات الذكاء الاصطناعي'),
+          Tab(text: 'الأحداث', icon: Icon(Icons.history)),
+          Tab(text: 'توصيات AI', icon: Icon(Icons.auto_awesome)),
         ],
       ),
     );
   }
 
-  // ==================== تبويب التذكيرات ====================
-  Widget _buildRemindersTab() {
-    final upcomingTasks = _taskController.tasks
-        .where((t) => t.dueDate != null && t.dueDate!.isAfter(DateTime.now()))
-        .toList();
+  // ==================== تبويب الأحداث (جديد) ====================
+  Widget _buildEventsTab() {
+    final events = EventService.getAllEvents();
 
-    if (upcomingTasks.isEmpty) {
+    if (events.isEmpty) {
       return _buildEmptyState(
         icon: Icons.notifications_none,
-        title: 'لا توجد تذكيرات',
-        subtitle: 'سيظهر هنا تذكيرات المهام القادمة',
+        title: 'لا توجد أحداث',
+        subtitle: 'ستظهر هنا جميع الأحداث والتغييرات التي تحدث في التطبيق',
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: upcomingTasks.length,
+      itemCount: events.length,
       itemBuilder: (context, index) {
-        final task = upcomingTasks[index];
-        return _buildReminderCard(task);
+        final event = events[index];
+        return _buildEventCard(event);
       },
+    );
+  }
+
+  // ==================== بطاقة الحدث (Event Card) ====================
+  Widget _buildEventCard(EventModel event) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: AppTheme.softShadow,
+        border: Border.all(
+          color: event.color.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (event.taskId != null) {
+              try {
+                final task = _taskController.tasks.firstWhere(
+                  (t) => t.id == event.taskId,
+                );
+                Get.toNamed(
+                  AppRoutes.taskDetails,
+                  arguments: {'task': task},
+                );
+              } catch (e) {
+                // المهمة غير موجودة
+              }
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // أيقونة الحدث
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: event.color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    event.icon,
+                    size: 28,
+                    color: event.color,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // المحتوى
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.title,
+                        style: AppTheme.bodyLg.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        event.message,
+                        style: AppTheme.bodyMd.copyWith(fontSize: 13),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        DateFormat('hh:mm a - dd/MM/yyyy').format(event.timestamp),
+                        style: AppTheme.labelSm.copyWith(color: AppTheme.outline),
+                      ),
+                    ],
+                  ),
+                ),
+                // زر الإجراء
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: event.color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'عرض',
+                        style: AppTheme.labelMd.copyWith(
+                          color: event.color,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_ios, size: 10, color: event.color),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -138,7 +241,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       return _buildEmptyState(
         icon: Icons.auto_awesome,
         title: 'لا توجد توصيات',
-        subtitle: 'سيظهر هنا توصيات الذكاء الاصطناعي',
+        subtitle: 'سيظهر هنا توصيات الذكاء الاصطناعي المخصصة لك',
       );
     }
 
@@ -148,130 +251,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       itemBuilder: (context, index) {
         return _buildInsightCard(insights[index]);
       },
-    );
-  }
-
-  // ==================== بطاقة التذكير ====================
-  Widget _buildReminderCard(TaskModel task) {
-    final isUrgent = task.dueDate != null &&
-        task.dueDate!.difference(DateTime.now()).inDays <= 1;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: AppTheme.softShadow,
-        border: Border.all(
-          color: isUrgent
-              ? AppTheme.error.withValues(alpha: 0.3)
-              : AppTheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            Get.toNamed(AppRoutes.addTask, arguments: {'task': task});
-          },
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // أيقونة
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: isUrgent
-                        ? AppTheme.error.withValues(alpha: 0.1)
-                        : AppTheme.primaryContainer.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    isUrgent ? Icons.priority_high : Icons.notifications_active,
-                    size: 28,
-                    color: isUrgent ? AppTheme.error : AppTheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                // المحتوى
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task.title,
-                        style: AppTheme.bodyLg.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Icon(Icons.calendar_today,
-                              size: 12, color: AppTheme.outline),
-                          const SizedBox(width: 4),
-                          Text(
-                            _formatDate(task.dueDate!),
-                            style: AppTheme.labelSm.copyWith(
-                              color: isUrgent ? AppTheme.error : AppTheme.outline,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          if (isUrgent)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.error.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'عاجل',
-                                style: AppTheme.labelSm.copyWith(
-                                  color: AppTheme.error,
-                                  fontSize: 9,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // زر الإجراء
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'عرض',
-                        style: AppTheme.labelMd.copyWith(
-                          color: AppTheme.primary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_ios,
-                          size: 10, color: AppTheme.primary),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -311,7 +290,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // أيقونة AI
                 Container(
                   width: 52,
                   height: 52,
@@ -326,7 +304,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ),
                 ),
                 const SizedBox(width: 14),
-                // المحتوى
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,11 +323,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                     ],
                   ),
                 ),
-                // زر الإجراء
                 if (insight['action'] != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppTheme.primary,
                       borderRadius: BorderRadius.circular(25),
@@ -399,30 +374,44 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           Text(
             subtitle,
             style: AppTheme.bodyMd,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
     );
   }
 
-  // ==================== حوار تحديد الكل كمقروء ====================
-  void _showMarkAllReadDialog() {
+  // ==================== حوار مسح جميع الأحداث ====================
+  void _showClearEventsDialog() {
+    final eventsCount = EventService.eventsCount;
+    
+    if (eventsCount == 0) {
+      Get.snackbar(
+        'تنبيه',
+        'لا توجد أحداث لمسحها',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppTheme.statusPending,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    
     Get.dialog(
       AlertDialog(
         backgroundColor: AppTheme.surfaceContainerLowest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.done_all, color: AppTheme.primary),
+            Icon(Icons.delete_sweep, color: AppTheme.error),
             const SizedBox(width: 10),
             Text(
-              'تحديد الكل كمقروء',
-              style: AppTheme.headlineMd.copyWith(fontSize: 18),
+              'مسح جميع الأحداث',
+              style: AppTheme.headlineMd.copyWith(fontSize: 18, color: AppTheme.error),
             ),
           ],
         ),
         content: Text(
-          'هل أنت متأكد من رغبتك في تحديد جميع الإشعارات كمقروءة؟',
+          'هل أنت متأكد من مسح جميع الأحداث (${eventsCount} حدث)؟ لا يمكنك التراجع عن هذا الإجراء.',
           style: AppTheme.bodyMd,
         ),
         actions: [
@@ -431,23 +420,24 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await EventService.clearAllEvents();
               Get.back();
+              setState(() {});
               Get.snackbar(
-                'تم التحديث',
-                'تم تحديد جميع الإشعارات كمقروءة',
+                'تم المسح',
+                'تم مسح جميع الأحداث بنجاح',
                 snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppTheme.primaryContainer,
-                colorText: AppTheme.onPrimaryContainer,
-                icon: Icon(Icons.check_circle, color: AppTheme.primary),
+                backgroundColor: AppTheme.statusCompleted,
+                colorText: Colors.white,
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: AppTheme.onPrimary,
+              backgroundColor: AppTheme.error,
+              foregroundColor: AppTheme.onError,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('تأكيد'),
+            child: const Text('مسح الكل'),
           ),
         ],
       ),
@@ -460,10 +450,20 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final completedTasks = tasks.where((t) => t.status == TaskStatus.completed).length;
     final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed).length;
     final urgentTasks = tasks.where((t) => t.priority == TaskPriority.urgent).length;
+    final missedTasks = _taskController.missedTasks;
 
     final insights = <Map<String, dynamic>>[];
 
-    // توصية 1: إنجاز
+    // توصية 1: مهام فائتة
+    if (missedTasks > 0) {
+      insights.add({
+        'title': '⚠️ مهام فائتة',
+        'message': 'لديك $missedTasks مهمة فائتة! يرجى مراجعتها وإعادة جدولتها.',
+        'action': 'عرض المهام',
+      });
+    }
+
+    // توصية 2: إنجاز
     if (completedTasks > 5) {
       insights.add({
         'title': '🎉 إنجاز رائع',
@@ -476,7 +476,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       });
     }
 
-    // توصية 2: مهام عاجلة
+    // توصية 3: مهام عاجلة
     if (urgentTasks > 0) {
       insights.add({
         'title': '⚡ مهام عاجلة',
@@ -485,7 +485,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       });
     }
 
-    // توصية 3: مهام معلقة كثيرة
+    // توصية 4: مهام معلقة كثيرة
     if (pendingTasks > 5) {
       insights.add({
         'title': '📋 مهام معلقة',
@@ -493,7 +493,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       });
     }
 
-    // توصية 4: قرب الهدف
+    // توصية 5: قرب الهدف
     if (pendingTasks <= 3 && pendingTasks > 0) {
       insights.add({
         'title': '🌟 قريب من الهدف',
@@ -501,7 +501,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       });
     }
 
-    // توصية 5: بداية
+    // توصية 6: بداية
     if (tasks.isEmpty) {
       insights.add({
         'title': '✨ ابدأ رحلتك',
@@ -510,7 +510,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       });
     }
 
-    // توصية 6: نصيحة يومية
+    // توصية 7: نصيحة يومية
     if (insights.isEmpty) {
       final tips = [
         {'title': '💡 نصيحة اليوم', 'message': 'خصص أول 30 دقيقة من يومك للمهام الأكثر أهمية.'},
@@ -522,22 +522,5 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
 
     return insights;
-  }
-
-  // ==================== تنسيق التاريخ ====================
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = date.difference(now).inDays;
-
-    if (difference == 0) {
-      return 'اليوم';
-    } else if (difference == 1) {
-      return 'غداً';
-    } else if (difference < 7) {
-      return 'بعد $difference أيام';
-    } else {
-      final months = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-      return '${date.day} ${months[date.month - 1]}';
-    }
   }
 }

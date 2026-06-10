@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
+import 'package:secondmind/core/routes/app_routes.dart';
 import 'package:secondmind/data/models/task_model.dart';
 import 'package:secondmind/features/tasks/controllers/task_controller.dart';
 
@@ -14,14 +15,46 @@ class StatsScreen extends StatelessWidget {
     
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: _buildBody(taskController),
+      body: Obx(() => _buildBody(taskController)),
     );
   }
 
   //============================================================================
-  // BODY (بدون AppBar)
+  // BODY
   //============================================================================
   Widget _buildBody(TaskController taskController) {
+    // ✅ إذا لم توجد مهام، عرض رسالة
+    if (taskController.tasks.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.insights, size: 80, color: AppTheme.outline),
+            const SizedBox(height: 16),
+            Text(
+              'لا توجد بيانات كافية للإحصائيات',
+              style: AppTheme.bodyLg.copyWith(color: AppTheme.outline),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'أضف بعض المهام لبدء رؤية الإحصائيات',
+              style: AppTheme.bodyMd.copyWith(color: AppTheme.outline),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Get.toNamed(AppRoutes.addTask),
+              icon: const Icon(Icons.add),
+              label: const Text('إضافة مهمة جديدة'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: AppTheme.onPrimary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return SingleChildScrollView(
       padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 80),
       child: Column(
@@ -29,6 +62,8 @@ class StatsScreen extends StatelessWidget {
           _buildAISummaryCard(taskController),
           const SizedBox(height: 20),
           _buildStatsGrid(taskController),
+          const SizedBox(height: 12),
+          _buildMissedStatsRow(taskController),
           const SizedBox(height: 20),
           _buildCategoryCard(taskController),
           const SizedBox(height: 20),
@@ -41,19 +76,49 @@ class StatsScreen extends StatelessWidget {
     );
   }
 
-
+  // ✅ صف المهام الفائتة والعاجلة
+  Widget _buildMissedStatsRow(TaskController taskController) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildStatCard(
+            title: 'المهام الفائتة',
+            value: '${taskController.missedTasks}',
+            subtitle: 'تجاوزت موعدها',
+            icon: Icons.warning_amber_outlined,
+            color: AppTheme.error,
+            trend: '⚠️ للمراجعة',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildStatCard(
+            title: 'المهام العاجلة',
+            value: '${taskController.urgentTasks}',
+            subtitle: 'ذات أولوية عالية',
+            icon: Icons.priority_high,
+            color: AppTheme.statusUrgent,
+            trend: 'انتبه!',
+          ),
+        ),
+      ],
+    );
+  }
 
   //============================================================================
-  // AI SUMMARY CARD (بيانات حقيقية)
+  // AI SUMMARY CARD
   //============================================================================
   Widget _buildAISummaryCard(TaskController taskController) {
     final totalTasks = taskController.totalTasks;
     final completedTasks = taskController.completedTasks;
+    final missedTasks = taskController.missedTasks;
     final pendingTasks = taskController.pendingTasks;
     final rate = taskController.completionRate;
     
     String message;
-    if (completedTasks == 0) {
+    if (missedTasks > 0) {
+      message = '⚠️ لديك $missedTasks مهمة فائتة! يرجى مراجعتها وإعادة جدولتها.';
+    } else if (completedTasks == 0) {
       message = '📝 لم تقم بإنجاز أي مهمة بعد. ابدأ بإضافة مهام جديدة وحقق أهدافك!';
     } else if (pendingTasks == 0) {
       message = '🎉 رائع! لقد أنجزت جميع مهامك. أنت مذهل! استمر في هذا الزخم.';
@@ -107,6 +172,7 @@ class StatsScreen extends StatelessWidget {
               _buildChip('🎯 هدف الأسبوع: ${(totalTasks * 0.8).round()} مهمة'),
               _buildChip('📊 نسبة الإنجاز: $rate%'),
               _buildChip('✅ أنجزت: $completedTasks مهمة'),
+              if (missedTasks > 0) _buildChip('⚠️ فائتة: $missedTasks مهمة'),
               _buildChip('🔥 الأيام المتتالية: ${taskController.streakDays}'),
             ],
           ),
@@ -127,7 +193,7 @@ class StatsScreen extends StatelessWidget {
   }
 
   //============================================================================
-  // STATS GRID (بيانات حقيقية)
+  // STATS GRID
   //============================================================================
   Widget _buildStatsGrid(TaskController taskController) {
     return Row(
@@ -206,99 +272,116 @@ class StatsScreen extends StatelessWidget {
   }
 
   //============================================================================
-  // CATEGORY CARD (بيانات حقيقية)
+  // CATEGORY CARD
   //============================================================================
-Widget _buildCategoryCard(TaskController taskController) {
-  final Map<String, int> categoryCount = {
-    'العمل': 0,
-    'شخصي': 0,
-    'دراسة': 0,
-    'عاجل': 0,
-  };
-  
-  for (var task in taskController.tasks) {
-    switch (task.category) {
-      case TaskCategory.work:
-        categoryCount['العمل'] = (categoryCount['العمل'] ?? 0) + 1;
-        break;
-      case TaskCategory.personal:
-        categoryCount['شخصي'] = (categoryCount['شخصي'] ?? 0) + 1;
-        break;
-      case TaskCategory.study:
-        categoryCount['دراسة'] = (categoryCount['دراسة'] ?? 0) + 1;
-        break;
-      case TaskCategory.urgent:
-        categoryCount['عاجل'] = (categoryCount['عاجل'] ?? 0) + 1;
-        break;
-      default:
-        break;
+  Widget _buildCategoryCard(TaskController taskController) {
+    final Map<String, int> categoryCount = {
+      'العمل': 0,
+      'شخصي': 0,
+      'دراسة': 0,
+      'عاجل': 0,
+    };
+    
+    for (var task in taskController.tasks) {
+      switch (task.category) {
+        case TaskCategory.work:
+          categoryCount['العمل'] = (categoryCount['العمل'] ?? 0) + 1;
+          break;
+        case TaskCategory.personal:
+          categoryCount['شخصي'] = (categoryCount['شخصي'] ?? 0) + 1;
+          break;
+        case TaskCategory.study:
+          categoryCount['دراسة'] = (categoryCount['دراسة'] ?? 0) + 1;
+          break;
+        case TaskCategory.urgent:
+          categoryCount['عاجل'] = (categoryCount['عاجل'] ?? 0) + 1;
+          break;
+        default:
+          break;
+      }
     }
-  }
-  
-  final topCategory = categoryCount.entries.reduce((a, b) => a.value > b.value ? a : b);
-  final totalCompleted = taskController.tasks.where((t) => t.status == TaskStatus.completed).length;
-  final percentage = totalCompleted > 0 ? (topCategory.value / totalCompleted * 100).round() : 0;
-  
-  return Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          AppTheme.primary.withValues(alpha: 0.08),
-          AppTheme.primaryContainer.withValues(alpha: 0.03),
+    
+    final topCategory = categoryCount.entries.reduce((a, b) => a.value > b.value ? a : b);
+    final totalCompleted = taskController.tasks.where((t) => t.status == TaskStatus.completed).length;
+    final percentage = totalCompleted > 0 ? (topCategory.value / totalCompleted * 100).round() : 0;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.08),
+            AppTheme.primaryContainer.withValues(alpha: 0.03),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 55,
+            height: 55,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.category, color: AppTheme.primary, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('الفئة الأكثر إنجازاً', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
+                const SizedBox(height: 4),
+                Text(topCategory.key, style: AppTheme.headlineMd.copyWith(fontWeight: FontWeight.w700, color: AppTheme.primary)),
+                const SizedBox(height: 8),
+                Text('${topCategory.value} مهام مكتملة', style: AppTheme.labelMd.copyWith(color: AppTheme.primary)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('$percentage%', style: AppTheme.labelLg.copyWith(color: AppTheme.primary)),
+          ),
         ],
       ),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 55,
-          height: 55,
-          decoration: BoxDecoration(
-            color: AppTheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(Icons.category, color: AppTheme.primary, size: 28),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('الفئة الأكثر إنجازاً', style: AppTheme.labelSm.copyWith(color: AppTheme.outline)),
-              const SizedBox(height: 4),
-              // ✅ هنا التعديل - استخدام topCategory.key بدلاً من displayName
-              Text(topCategory.key, style: AppTheme.headlineMd.copyWith(fontWeight: FontWeight.w700, color: AppTheme.primary)),
-              const SizedBox(height: 8),
-              Text('${topCategory.value} مهام مكتملة', style: AppTheme.labelMd.copyWith(color: AppTheme.primary)),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppTheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text('$percentage%', style: AppTheme.labelLg.copyWith(color: AppTheme.primary)),
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 
   //============================================================================
-  // WEEKLY CHART (بيانات حقيقية)
+  // WEEKLY CHART
   //============================================================================
   Widget _buildWeeklyChart(TaskController taskController) {
     final days = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
     final weeklyTasks = taskController.weeklyTasks;
     final weeklyCompleted = taskController.weeklyCompletedTasks;
     final maxValue = weeklyTasks.reduce((a, b) => a > b ? a : b).toDouble();
+    
+    if (maxValue == 0) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.bar_chart, size: 48, color: Colors.grey),
+            const SizedBox(height: 8),
+            Text('لا توجد بيانات كافية للرسم البياني',
+              style: AppTheme.bodyMd.copyWith(color: AppTheme.outline)),
+          ],
+        ),
+      );
+    }
     
     return Container(
       padding: const EdgeInsets.all(20),
@@ -376,7 +459,7 @@ Widget _buildCategoryCard(TaskController taskController) {
   }
 
   //============================================================================
-  // SECONDARY STATS (بيانات حقيقية)
+  // SECONDARY STATS
   //============================================================================
   Widget _buildSecondaryStats(TaskController taskController) {
     final totalHours = taskController.totalWorkHours.toStringAsFixed(1);

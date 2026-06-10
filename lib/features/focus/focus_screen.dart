@@ -1,11 +1,10 @@
 // lib/features/focus/focus_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
-import 'package:secondmind/core/routes/app_routes.dart';
+import 'package:secondmind/data/services/sound_service.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -15,25 +14,19 @@ class FocusScreen extends StatefulWidget {
 }
 
 class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin {
-  // Timer variables
   int _timeLeft = 25 * 60;
-  final int _totalTime = 25 * 60;
+  int _totalTime = 25 * 60;
   bool _isRunning = false;
   Timer? _timer;
   
-  // Animation controllers
   late AnimationController _pulseController;
   
-  // Audio players
   final AudioPlayer _audioPlayer = AudioPlayer();
-  AudioPlayer? _currentPlayer;
   String? _currentPlayingSound;
   
-  // Volume
   double _volume = 0.5;
   bool _isMuted = false;
   
-  // Selected sound
   String _selectedSound = 'Rain';
   final List<String> _sounds = ['Rain', 'Forest', 'Noise', 'Lo-fi', 'Ocean', 'Fire'];
   final Map<String, IconData> _soundIcons = {
@@ -53,7 +46,26 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
     'Fire': 'fire.mp3',
   };
   
-  // Focus stats
+  // متغيرات النصائح
+  Timer? _tipsTimer;
+  final List<String> _tips = [
+    '💡 أخذ استراحة لمدة 5 دقائق الآن سيعزز تركيزك بنسبة 20% في الساعة القادمة.',
+    '💧 شرب الماء يساعد في تحسين التركيز بنسبة 14%.',
+    '🧘 الجلوس بوضعية مستقيمة يزيد التركيز بنسبة 15%.',
+    '📵 تجنب المشتتات الرقمية يضاعف إنتاجيتك.',
+    '📝 تقسيم المهام الكبيرة إلى أجزاء صغيرة يسهل إنجازها.',
+    '🎯 حدد هدفاً واحداً لكل جلسة تركيز.',
+    '🌿 بيئة العمل المرتبة تزيد الإنتاجية بنسبة 30%.',
+    '🎧 الاستماع إلى الموسيقى الهادئة يحسن التركيز.',
+    '🕐 قاعدة 20-20-20: كل 20 دقيقة، انظر لشيء على بعد 20 قدم لمدة 20 ثانية.',
+    '😴 النوم الكافي يزيد الإنتاجية بنسبة 30%.',
+  ];
+  String _currentTip = '';
+  
+  // متغيرات الوقت المخصص
+  int _customMinutes = 25;
+  final List<int> _presetMinutes = [15, 25, 30, 45, 60];
+  
   int _totalFocusMinutes = 0;
   int _completedSessions = 0;
 
@@ -66,54 +78,33 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
     )..repeat(reverse: true);
     
     _setupAudioPlayer();
+    _currentTip = _tips[0];
+    _startTipsTimer();
   }
 
   void _setupAudioPlayer() {
     _audioPlayer.onPlayerComplete.listen((event) {
-      // إعادة تشغيل الصوت تلقائياً عند الانتهاء (للتكرار)
       if (_isRunning && _currentPlayingSound != null) {
         _playSound(_selectedSound);
       }
     });
-    
     _audioPlayer.setVolume(_volume);
   }
 
   Future<void> _playSound(String sound) async {
     try {
-      // إيقاف الصوت الحالي
       await _audioPlayer.stop();
-      
-      // تشغيل الصوت الجديد من الملف المحلي
       final filePath = 'sounds/${_soundFiles[sound]}';
       await _audioPlayer.play(AssetSource(filePath));
       _currentPlayingSound = sound;
       
-      // تحديث حالة mute
       if (_isMuted) {
         await _audioPlayer.setVolume(0);
       } else {
         await _audioPlayer.setVolume(_volume);
       }
-      
-      // عرض رسالة توضيحية
-      Get.snackbar(
-        'تشغيل الصوت',
-        'جاري تشغيل صوت $sound',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(milliseconds: 800),
-        backgroundColor: AppTheme.primaryContainer.withValues(alpha: 0.9),
-        colorText: AppTheme.onPrimaryContainer,
-      );
     } catch (e) {
       debugPrint('Error playing sound: $e');
-      Get.snackbar(
-        'تنبيه',
-        'لم يتم العثور على ملف الصوت، يرجى إضافته إلى مجلد assets/sounds/',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppTheme.errorContainer,
-        colorText: AppTheme.onErrorContainer,
-      );
     }
   }
 
@@ -129,15 +120,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
         _audioPlayer.setVolume(value);
       }
     });
-    
-    Get.snackbar(
-      'مستوى الصوت',
-      'تم تغيير مستوى الصوت إلى ${(value * 100).round()}%',
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(milliseconds: 800),
-      backgroundColor: AppTheme.primaryContainer,
-      colorText: AppTheme.onPrimaryContainer,
-    );
   }
 
   void _toggleMute() {
@@ -149,18 +131,23 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
         _audioPlayer.setVolume(_volume);
       }
     });
-    
-    Get.snackbar(
-      _isMuted ? 'تم كتم الصوت' : 'تم إلغاء كتم الصوت',
-      _isMuted ? 'الأصوات المحيطة مكتومة حالياً' : 'تم استعادة مستوى الصوت',
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(milliseconds: 800),
-    );
+  }
+
+  void _startTipsTimer() {
+    _tipsTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
+      if (mounted) {
+        final randomIndex = DateTime.now().millisecondsSinceEpoch % _tips.length;
+        setState(() {
+          _currentTip = _tips[randomIndex];
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _tipsTimer?.cancel();
     _pulseController.dispose();
     _audioPlayer.dispose();
     super.dispose();
@@ -169,6 +156,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
   void _startTimer() {
     if (_isRunning) {
       _timer?.cancel();
+      _stopSound();
       setState(() => _isRunning = false);
     } else {
       if (_timeLeft == 0) _resetTimer();
@@ -180,8 +168,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
           _timerComplete();
         }
       });
-      
-      // تشغيل الصوت المحدد عند بدء الجلسة
       if (!_isMuted) {
         _playSound(_selectedSound);
       }
@@ -200,11 +186,12 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
   void _timerComplete() {
     _timer?.cancel();
     _stopSound();
+    SoundService.playFocusEndSound();
     setState(() {
       _isRunning = false;
       _timeLeft = 0;
       _completedSessions++;
-      _totalFocusMinutes += 25;
+      _totalFocusMinutes += (_totalTime ~/ 60);
     });
     _showCompletionDialog();
   }
@@ -229,6 +216,94 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
     );
   }
 
+  void _showCustomTimeDialog() {
+    int selectedMinutes = _customMinutes;
+    
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: AppTheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.timer, color: AppTheme.primary),
+            const SizedBox(width: 8),
+            Text('تحديد وقت التركيز', style: AppTheme.headlineMd),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('اختر المدة المناسبة للتركيز'),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _presetMinutes.map((minutes) {
+                return FilterChip(
+                  label: Text('$minutes دقيقة'),
+                  selected: selectedMinutes == minutes,
+                  onSelected: (_) {
+                    selectedMinutes = minutes;
+                  },
+                  selectedColor: AppTheme.primary,
+                  labelStyle: TextStyle(
+                    color: selectedMinutes == minutes ? Colors.white : AppTheme.onSurface,
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'وقت مخصص (دقائق)',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      if (value.isNotEmpty) {
+                        selectedMinutes = int.tryParse(value) ?? 25;
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back();
+              setState(() {
+                _customMinutes = selectedMinutes.clamp(1, 180);
+                _totalTime = _customMinutes * 60;
+                _timeLeft = _totalTime;
+              });
+              Get.snackbar(
+                'تم التغيير',
+                'تم ضبط وقت التركيز إلى $_customMinutes دقيقة',
+                snackPosition: SnackPosition.BOTTOM,
+                duration: const Duration(seconds: 2),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: AppTheme.onPrimary,
+            ),
+            child: const Text('تطبيق'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
@@ -247,7 +322,12 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
     
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: _buildAppBar(),
+      appBar: AppBar(
+        title: const Text('التركيز الذهني'),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: AppTheme.surface.withValues(alpha: 0.8),
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -268,17 +348,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: const Text('التركيز الذهني'),
-      centerTitle: true,
-      elevation: 0,
-      backgroundColor: AppTheme.surface.withValues(alpha: 0.8),
-      automaticallyImplyLeading: false,
     );
   }
 
@@ -358,6 +427,20 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
             child: Icon(Icons.refresh, size: 28, color: AppTheme.onSurfaceVariant),
           ),
         ),
+        const SizedBox(width: 24),
+        GestureDetector(
+          onTap: _showCustomTimeDialog,
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: AppTheme.neumorphicShadow,
+            ),
+            child: Icon(Icons.timer_outlined, size: 28, color: AppTheme.primary),
+          ),
+        ),
       ],
     );
   }
@@ -368,7 +451,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // عنوان القسم مع أيقونة
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
@@ -382,16 +464,8 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                   child: Icon(Icons.music_note, size: 18, color: AppTheme.primary),
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  'الأصوات المحيطة',
-                  style: AppTheme.labelMd.copyWith(
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
+                Text('الأصوات المحيطة', style: AppTheme.labelMd.copyWith(color: AppTheme.primary, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
                 const Spacer(),
-                // زر كتم الصوت
                 GestureDetector(
                   onTap: _toggleMute,
                   child: Container(
@@ -400,15 +474,10 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                       color: AppTheme.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      _isMuted ? Icons.volume_off : Icons.volume_up,
-                      size: 18,
-                      color: AppTheme.primary,
-                    ),
+                    child: Icon(_isMuted ? Icons.volume_off : Icons.volume_up, size: 18, color: AppTheme.primary),
                   ),
                 ),
                 const SizedBox(width: 8),
-                // مؤشر الصوت المحدد
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -420,10 +489,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                     children: [
                       Icon(Icons.volume_up, size: 12, color: AppTheme.primary),
                       const SizedBox(width: 4),
-                      Text(
-                        _selectedSound,
-                        style: AppTheme.labelSm.copyWith(color: AppTheme.primary),
-                      ),
+                      Text(_selectedSound, style: AppTheme.labelSm.copyWith(color: AppTheme.primary)),
                     ],
                   ),
                 ),
@@ -431,8 +497,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
             ),
           ),
           const SizedBox(height: 14),
-          
-          // شبكة الأصوات المحيطة
           SizedBox(
             height: 95,
             child: ListView.builder(
@@ -460,18 +524,9 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                       color: isSelected ? null : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: AppTheme.primary.withValues(alpha: 0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                              ...AppTheme.neumorphicShadow,
-                            ]
+                          ? [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4)), ...AppTheme.neumorphicShadow]
                           : AppTheme.neumorphicShadow,
-                      border: isSelected
-                          ? null
-                          : Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.3)),
+                      border: isSelected ? null : Border.all(color: AppTheme.outlineVariant.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -483,16 +538,10 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                               width: 44,
                               height: 44,
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? Colors.white.withValues(alpha: 0.2)
-                                    : AppTheme.primaryContainer.withValues(alpha: 0.1),
+                                color: isSelected ? Colors.white.withValues(alpha: 0.2) : AppTheme.primaryContainer.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(14),
                               ),
-                              child: Icon(
-                                _soundIcons[sound],
-                                size: 26,
-                                color: isSelected ? Colors.white : AppTheme.primary,
-                              ),
+                              child: Icon(_soundIcons[sound], size: 26, color: isSelected ? Colors.white : AppTheme.primary),
                             ),
                             if (isPlaying)
                               Container(
@@ -502,23 +551,16 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                                   color: Colors.black.withValues(alpha: 0.5),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: const Icon(
-                                  Icons.play_arrow,
-                                  size: 24,
-                                  color: Colors.white,
-                                ),
+                                child: const Icon(Icons.play_arrow, size: 24, color: Colors.white),
                               ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          sound,
-                          style: AppTheme.labelSm.copyWith(
-                            color: isSelected ? Colors.white : AppTheme.onSurfaceVariant,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            fontSize: 11,
-                          ),
-                        ),
+                        Text(sound, style: AppTheme.labelSm.copyWith(
+                          color: isSelected ? Colors.white : AppTheme.onSurfaceVariant,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontSize: 11,
+                        )),
                       ],
                     ),
                   ),
@@ -526,10 +568,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
               },
             ),
           ),
-          
           const SizedBox(height: 8),
-          
-          // شريط التحكم في الصوت
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
@@ -538,9 +577,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
                 Expanded(
                   child: Slider(
                     value: _volume,
-                    onChanged: (value) {
-                      _changeVolume(value);
-                    },
+                    onChanged: _changeVolume,
                     activeColor: AppTheme.primary,
                     inactiveColor: AppTheme.outlineVariant,
                     min: 0,
@@ -562,11 +599,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: AppTheme.neumorphicShadow,
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: AppTheme.neumorphicShadow),
             child: Column(
               children: [
                 Text(_formatTotalTime(_totalFocusMinutes), style: AppTheme.headlineMd.copyWith(color: AppTheme.primary)),
@@ -580,11 +613,7 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: AppTheme.neumorphicShadow,
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: AppTheme.neumorphicShadow),
             child: Column(
               children: [
                 Text('$_completedSessions', style: AppTheme.headlineMd.copyWith(color: AppTheme.primary)),
@@ -599,18 +628,6 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
   }
 
   Widget _buildSmartTip() {
-    final List<String> tips = [
-      '💡 أخذ استراحة لمدة 5 دقائق الآن سيعزز تركيزك بنسبة 20% في الساعة القادمة.',
-      '💧 شرب الماء يساعد في تحسين التركيز بنسبة 14%.',
-      '🧘 الجلوس بوضعية مستقيمة يزيد التركيز بنسبة 15%.',
-      '📵 تجنب المشتتات الرقمية يضاعف إنتاجيتك.',
-      '📝 تقسيم المهام الكبيرة إلى أجزاء صغيرة يسهل إنجازها.',
-      '🎯 حدد هدفاً واحداً لكل جلسة تركيز.',
-      '🌿 بيئة العمل المرتبة تزيد الإنتاجية بنسبة 30%.',
-    ];
-    
-    final randomTip = tips[DateTime.now().millisecondsSinceEpoch % tips.length];
-    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -625,60 +642,11 @@ class _FocusScreenState extends State<FocusScreen> with TickerProviderStateMixin
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              randomTip,
+              _currentTip,
               style: AppTheme.bodyMd.copyWith(fontSize: 13, height: 1.4),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.surface.withValues(alpha: 0.95),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), offset: const Offset(0, -4), blurRadius: 20)],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(Icons.dashboard_customize, 'المهام', AppRoutes.tasks),
-                _buildNavItem(Icons.bar_chart_outlined, 'الإحصائيات', AppRoutes.stats),
-                _buildNavItem(Icons.timer, 'تركيز', '/focus'),
-                _buildNavItem(Icons.settings_outlined, 'الإعدادات', AppRoutes.settings),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, String route) {
-    final isSelected = route == '/focus';
-    return GestureDetector(
-      onTap: () => Get.toNamed(route),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryContainer.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: isSelected ? AppTheme.primary : AppTheme.outline, size: 22),
-            const SizedBox(height: 2),
-            Text(label, style: AppTheme.labelSm.copyWith(color: isSelected ? AppTheme.primary : AppTheme.outline, fontSize: 10)),
-          ],
-        ),
       ),
     );
   }

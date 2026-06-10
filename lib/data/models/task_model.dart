@@ -1,10 +1,55 @@
 ﻿// lib/data/models/task_model.dart
 import 'package:hive/hive.dart';
 
-enum TaskStatus { new_, inProgress, completed }
-enum TaskPriority { low, medium, high, urgent }
-enum TaskCategory { work, personal, study, urgent, other }
-enum AttendanceType { online, inPerson, hybrid }
+part 'task_model.g.dart';
+
+@HiveType(typeId: 1)
+enum TaskStatus {
+  @HiveField(0)
+  new_,
+  @HiveField(1)
+  inProgress,
+  @HiveField(2)
+  completed,
+  @HiveField(3)
+  missed,
+}
+
+@HiveType(typeId: 2)
+enum TaskPriority {
+  @HiveField(0)
+  low,
+  @HiveField(1)
+  medium,
+  @HiveField(2)
+  high,
+  @HiveField(3)
+  urgent,
+}
+
+@HiveType(typeId: 3)
+enum TaskCategory {
+  @HiveField(0)
+  work,
+  @HiveField(1)
+  personal,
+  @HiveField(2)
+  study,
+  @HiveField(3)
+  urgent,
+  @HiveField(4)
+  other,
+}
+
+@HiveType(typeId: 4)
+enum AttendanceType {
+  @HiveField(0)
+  online,
+  @HiveField(1)
+  inPerson,
+  @HiveField(2)
+  hybrid,
+}
 
 extension AttendanceTypeExtension on AttendanceType {
   String get displayName {
@@ -51,33 +96,32 @@ class TaskModel {
   @HiveField(9)
   TaskCategory category;
   
-  // ============ الحقول الجديدة (اختيارية) ============
   @HiveField(10)
-  String? location;           // المكان
+  String? location;
   
   @HiveField(11)
-  AttendanceType? attendanceType;  // أونلاين / وجاهي / مختلط
+  AttendanceType? attendanceType;
   
   @HiveField(12)
-  String? meetingLink;        // رابط الحضور (Google Meet, Zoom, Teams)
+  String? meetingLink;
   
   @HiveField(13)
-  String? organizer;          // الجهة المنظمة
+  String? organizer;
   
   @HiveField(14)
-  String? contactPhone;       // رقم الاتصال
+  String? contactPhone;
   
   @HiveField(15)
-  String? contactEmail;       // البريد الإلكتروني للتواصل
+  String? contactEmail;
   
   @HiveField(16)
-  String? registrationLink;   // رابط التسجيل
+  String? registrationLink;
   
   @HiveField(17)
-  String? fee;                // الرسوم (مجاني / 50 ريال / ...)
+  String? fee;
   
   @HiveField(18)
-  String? additionalNotes;    // ملاحظات إضافية
+  String? additionalNotes;
 
   TaskModel({
     required this.id,
@@ -143,79 +187,5 @@ class TaskModel {
       fee: fee ?? this.fee,
       additionalNotes: additionalNotes ?? this.additionalNotes,
     );
-  }
-}
-
-// TaskModelAdapter (تحديث)
-class TaskModelAdapter extends TypeAdapter<TaskModel> {
-  @override
-  final int typeId = 0;
-  
-  @override
-  TaskModel read(BinaryReader reader) {
-    return TaskModel(
-      id: reader.readString(),
-      title: reader.readString(),
-      description: _readStringOrNull(reader),
-      dueDate: _readDateTimeOrNull(reader),
-      status: TaskStatus.values[reader.readInt()],
-      priority: TaskPriority.values[reader.readInt()],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
-      completedAt: _readDateTimeOrNull(reader),
-      timeSpent: _readIntOrNull(reader),
-      category: TaskCategory.values[reader.readInt()],
-      location: _readStringOrNull(reader),
-      attendanceType: _readAttendanceTypeOrNull(reader),
-      meetingLink: _readStringOrNull(reader),
-      organizer: _readStringOrNull(reader),
-      contactPhone: _readStringOrNull(reader),
-      contactEmail: _readStringOrNull(reader),
-      registrationLink: _readStringOrNull(reader),
-      fee: _readStringOrNull(reader),
-      additionalNotes: _readStringOrNull(reader),
-    );
-  }
-  
-  @override
-  void write(BinaryWriter writer, TaskModel obj) {
-    writer.writeString(obj.id);
-    writer.writeString(obj.title);
-    writer.writeString(obj.description ?? '');
-    writer.writeInt(obj.dueDate?.millisecondsSinceEpoch ?? -1);
-    writer.writeInt(obj.status.index);
-    writer.writeInt(obj.priority.index);
-    writer.writeInt(obj.createdAt.millisecondsSinceEpoch);
-    writer.writeInt(obj.completedAt?.millisecondsSinceEpoch ?? -1);
-    writer.writeInt(obj.timeSpent ?? -1);
-    writer.writeInt(obj.category.index);
-    writer.writeString(obj.location ?? '');
-    writer.writeInt(obj.attendanceType?.index ?? -1);
-    writer.writeString(obj.meetingLink ?? '');
-    writer.writeString(obj.organizer ?? '');
-    writer.writeString(obj.contactPhone ?? '');
-    writer.writeString(obj.contactEmail ?? '');
-    writer.writeString(obj.registrationLink ?? '');
-    writer.writeString(obj.fee ?? '');
-    writer.writeString(obj.additionalNotes ?? '');
-  }
-  
-  String? _readStringOrNull(BinaryReader reader) {
-    final value = reader.readString();
-    return value.isEmpty ? null : value;
-  }
-  
-  DateTime? _readDateTimeOrNull(BinaryReader reader) {
-    final value = reader.readInt();
-    return value == -1 ? null : DateTime.fromMillisecondsSinceEpoch(value);
-  }
-  
-  int? _readIntOrNull(BinaryReader reader) {
-    final value = reader.readInt();
-    return value == -1 ? null : value;
-  }
-  
-  AttendanceType? _readAttendanceTypeOrNull(BinaryReader reader) {
-    final value = reader.readInt();
-    return value == -1 ? null : AttendanceType.values[value];
   }
 }
