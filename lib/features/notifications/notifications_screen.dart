@@ -20,11 +20,16 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   late TabController _tabController;
   final _taskController = Get.find<TaskController>();
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+@override
+void initState() {
+  super.initState();
+  _tabController = TabController(length: 2, vsync: this);
+  
+  // ✅ تحديث العداد عند فتح الصفحة (تعتبر جميع الأحداث مقروءة)
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    EventService.markAllAsRead();
+  });
+}
 
   @override
   void dispose() {
@@ -252,6 +257,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         return _buildInsightCard(insights[index]);
       },
     );
+
+    
   }
 
   // ==================== بطاقة توصية الذكاء الاصطناعي ====================
@@ -382,145 +389,325 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   // ==================== حوار مسح جميع الأحداث ====================
-  void _showClearEventsDialog() {
-    final eventsCount = EventService.eventsCount;
-    
-    if (eventsCount == 0) {
-      Get.snackbar(
-        'تنبيه',
-        'لا توجد أحداث لمسحها',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: AppTheme.statusPending,
-        colorText: Colors.white,
-      );
-      return;
-    }
-    
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: AppTheme.surfaceContainerLowest,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(Icons.delete_sweep, color: AppTheme.error),
-            const SizedBox(width: 10),
-            Text(
-              'مسح جميع الأحداث',
-              style: AppTheme.headlineMd.copyWith(fontSize: 18, color: AppTheme.error),
+void _showClearEventsDialog() {
+  final eventsCount = EventService.eventsCount;
+  
+  if (eventsCount == 0) {
+    Get.snackbar(
+      'تنبيه',
+      'لا توجد أحداث لمسحها',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppTheme.statusPending,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
+    );
+    return;
+  }
+  
+  Get.dialog(
+    Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        content: Text(
-          'هل أنت متأكد من مسح جميع الأحداث (${eventsCount} حدث)؟ لا يمكنك التراجع عن هذا الإجراء.',
-          style: AppTheme.bodyMd,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await EventService.clearAllEvents();
-              Get.back();
-              setState(() {});
-              Get.snackbar(
-                'تم المسح',
-                'تم مسح جميع الأحداث بنجاح',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppTheme.statusCompleted,
-                colorText: Colors.white,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.error,
-              foregroundColor: AppTheme.onError,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // أيقونة التحذير
+            Container(
+              margin: const EdgeInsets.only(top: 24),
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.delete_sweep,
+                size: 36,
+                color: AppTheme.error,
+              ),
             ),
-            child: const Text('مسح الكل'),
-          ),
-        ],
+            const SizedBox(height: 20),
+            // عنوان
+            Text(
+              'مسح جميع الأحداث',
+              style: AppTheme.headlineMd.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppTheme.error,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // المحتوى
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                'هل أنت متأكد من مسح جميع الأحداث؟',
+                style: AppTheme.bodyMd.copyWith(color: AppTheme.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppTheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'سيتم حذف $eventsCount حدث نهائياً. لا يمكنك التراجع عن هذا الإجراء.',
+                      style: AppTheme.labelMd.copyWith(
+                        color: AppTheme.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // أزرار
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: Row(
+                children: [
+                  // زر إلغاء
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        side: BorderSide(color: AppTheme.outline),
+                      ),
+                      child: Text(
+                        'إلغاء',
+                        style: AppTheme.labelLg.copyWith(color: AppTheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // زر مسح الكل
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Get.back(); // إغلاق النافذة أولاً
+                        await EventService.clearAllEvents();
+                        setState(() {});
+                        Get.snackbar(
+                          'تم المسح',
+                          'تم مسح جميع الأحداث بنجاح',
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppTheme.statusCompleted,
+                          colorText: Colors.white,
+                          duration: const Duration(seconds: 2),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: AppTheme.error,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text('مسح الكل'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ==================== إنشاء توصيات الذكاء الاصطناعي ====================
-  List<Map<String, dynamic>> _generateAIInsights() {
-    final tasks = _taskController.tasks;
-    final completedTasks = tasks.where((t) => t.status == TaskStatus.completed).length;
-    final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed).length;
-    final urgentTasks = tasks.where((t) => t.priority == TaskPriority.urgent).length;
-    final missedTasks = _taskController.missedTasks;
+List<Map<String, dynamic>> _generateAIInsights() {
+  final tasks = _taskController.tasks;
+  final completedTasks = tasks.where((t) => t.status == TaskStatus.completed).length;
+  final pendingTasks = tasks.where((t) => t.status != TaskStatus.completed).length;
+  final urgentTasks = tasks.where((t) => t.priority == TaskPriority.urgent).length;
+  final missedTasks = _taskController.missedTasks;
 
-    final insights = <Map<String, dynamic>>[];
+  final insights = <Map<String, dynamic>>[];
 
-    // توصية 1: مهام فائتة
-    if (missedTasks > 0) {
+  // ==================== التحليل المتقدم ====================
+  
+  // 1️⃣ تحليل الاتجاهات الأسبوعية
+  final thisWeek = _taskController.weeklyTasksCount;
+  final lastWeek = _taskController.lastWeekTasksCount;
+  final trendPercent = _taskController.weeklyTrendPercentage;
+
+  if (lastWeek > 0) {
+    if (trendPercent > 10) {
       insights.add({
-        'title': '⚠️ مهام فائتة',
-        'message': 'لديك $missedTasks مهمة فائتة! يرجى مراجعتها وإعادة جدولتها.',
-        'action': 'عرض المهام',
+        'title': '🎯 أداء أفضل هذا الأسبوع!',
+        'message': 'أنت أكثر إنتاجية بنسبة ${trendPercent.round()}% مقارنة بالأسبوع الماضي. استمر بهذا الزخم!',
+        'action': 'عرض الإحصائيات',
       });
-    }
-
-    // توصية 2: إنجاز
-    if (completedTasks > 5) {
+    } else if (trendPercent < -10) {
       insights.add({
-        'title': '🎉 إنجاز رائع',
-        'message': 'لقد أنجزت $completedTasks مهمة هذا الأسبوع. أنت في طريقك لتحقيق أهدافك!',
+        'title': '⚠️ تراجع في الإنتاجية',
+        'message': 'إنتاجيتك أقل بنسبة ${trendPercent.abs().round()}% مقارنة بالأسبوع الماضي. حاول تحديد أولوياتك.',
+        'action': 'عرض الإحصائيات',
       });
-    } else if (completedTasks > 0) {
+    } else if (thisWeek > lastWeek) {
       insights.add({
         'title': '📈 تقدم ملحوظ',
-        'message': 'أنجزت $completedTasks مهمة حتى الآن. واصل بهذا الزخم!',
+        'message': 'أنجزت ${thisWeek - lastWeek} مهمة أكثر من الأسبوع الماضي. واصل بهذا التحسن!',
       });
     }
-
-    // توصية 3: مهام عاجلة
-    if (urgentTasks > 0) {
-      insights.add({
-        'title': '⚡ مهام عاجلة',
-        'message': 'لديك $urgentTasks مهمة عاجلة. ركز عليها أولاً لتحقيق أقصى إنتاجية!',
-        'action': 'عرض المهام',
-      });
-    }
-
-    // توصية 4: مهام معلقة كثيرة
-    if (pendingTasks > 5) {
-      insights.add({
-        'title': '📋 مهام معلقة',
-        'message': 'لديك $pendingTasks مهام معلقة. قسمها إلى مهام أصغر لتسهيل إنجازها.',
-      });
-    }
-
-    // توصية 5: قرب الهدف
-    if (pendingTasks <= 3 && pendingTasks > 0) {
-      insights.add({
-        'title': '🌟 قريب من الهدف',
-        'message': 'بقي لك $pendingTasks مهام فقط. أنت على بعد خطوات من إنجاز كل شيء!',
-      });
-    }
-
-    // توصية 6: بداية
-    if (tasks.isEmpty) {
-      insights.add({
-        'title': '✨ ابدأ رحلتك',
-        'message': 'أضف مهامك الأولى وابدأ رحلة الإنتاجية مع SecondMind!',
-        'action': 'إضافة مهمة',
-      });
-    }
-
-    // توصية 7: نصيحة يومية
-    if (insights.isEmpty) {
-      final tips = [
-        {'title': '💡 نصيحة اليوم', 'message': 'خصص أول 30 دقيقة من يومك للمهام الأكثر أهمية.'},
-        {'title': '🎯 تركيز', 'message': 'استخدم تقنية بومودورو لزيادة إنتاجيتك: 25 دقيقة عمل، 5 دقائق راحة.'},
-        {'title': '📅 تنظيم', 'message': 'خطط لمهامك في الليلة السابقة لتبدأ يومك بنشاط.'},
-        {'title': '🚀 إنجاز', 'message': 'أنجز أصعب مهمة أولاً في الصباح عندما تكون طاقتك في أعلى مستوياتها.'},
-      ];
-      insights.add(tips[DateTime.now().day % tips.length]);
-    }
-
-    return insights;
   }
+
+  // 2️⃣ أفضل وقت للإنتاجية
+  final bestTime = _taskController.bestProductivityTime;
+  if (bestTime != '0:00 - 1:00') {
+    insights.add({
+      'title': '⏰ وقت الإنتاجية المثالي',
+      'message': 'أفضل وقت لإنجاز المهام هو بين $bestTime',
+      'action': 'جدولة مهامك',
+    });
+  }
+
+  // 3️⃣ توصيات حسب اليوم
+  final today = DateTime.now().weekday;
+  final dayNames = {
+    1: 'الأحد', 2: 'الإثنين', 3: 'الثلاثاء', 
+    4: 'الأربعاء', 5: 'الخميس', 6: 'الجمعة', 7: 'السبت'
+  };
+
+  if (pendingTasks > 3) {
+    insights.add({
+      'title': '📅 توصية ليوم ${dayNames[today]}',
+      'message': pendingTasks > 5 
+          ? 'لديك مهام كثيرة اليوم. ركز على إكمال 3 مهام أولاً.'
+          : 'أنت في منتصف الطريق. أكمل ما تبقى لتحصل على يوم منتج!',
+    });
+  }
+
+  // 4️⃣ تنبيه الإرهاق
+  final recentCompleted = _taskController.tasks
+      .where((t) => t.completedAt != null && t.completedAt!.isAfter(DateTime.now().subtract(const Duration(hours: 2))))
+      .length;
+
+  if (recentCompleted >= 3) {
+    insights.add({
+      'title': '🧘 خذ استراحة',
+      'message': 'لقد أنجزت $recentCompleted مهام في آخر ساعتين. استراحة قصيرة ستزيد إنتاجيتك.',
+      'action': 'وضع التركيز',
+    });
+  }
+
+  // 5️⃣ توصيات حسب الفئة
+  final topCategory = _taskController.topCategory;
+  final categoryNames = {
+    TaskCategory.work: 'العمل',
+    TaskCategory.personal: 'الشخصي',
+    TaskCategory.study: 'الدراسة',
+    TaskCategory.urgent: 'العاجل',
+    TaskCategory.other: 'أخرى',
+  };
+
+  final completedInTopCategory = _taskController.completedTasksByCategory[topCategory] ?? 0;
+  if (completedInTopCategory > 0) {
+    insights.add({
+      'title': '🏆 فئتك الأكثر إنجازاً',
+      'message': 'لقد أنجزت $completedInTopCategory مهام في فئة ${categoryNames[topCategory]}. استمر بهذا التميز!',
+    });
+  }
+
+  // ==================== التوصيات الأساسية ====================
+  
+  // توصية المهام الفائتة
+  if (missedTasks > 0) {
+    insights.add({
+      'title': '⚠️ مهام فائتة',
+      'message': 'لديك $missedTasks مهمة فائتة! يرجى مراجعتها وإعادة جدولتها.',
+      'action': 'عرض المهام',
+    });
+  }
+
+  // توصية الإنجاز
+  if (completedTasks > 5) {
+    insights.add({
+      'title': '🎉 إنجاز رائع',
+      'message': 'لقد أنجزت $completedTasks مهمة هذا الأسبوع. أنت في طريقك لتحقيق أهدافك!',
+    });
+  } else if (completedTasks > 0) {
+    insights.add({
+      'title': '📈 تقدم ملحوظ',
+      'message': 'أنجزت $completedTasks مهمة حتى الآن. واصل بهذا الزخم!',
+    });
+  }
+
+  // توصية المهام العاجلة
+  if (urgentTasks > 0) {
+    insights.add({
+      'title': '⚡ مهام عاجلة',
+      'message': 'لديك $urgentTasks مهمة عاجلة. ركز عليها أولاً لتحقيق أقصى إنتاجية!',
+      'action': 'عرض المهام',
+    });
+  }
+
+  // توصية المهام المعلقة
+  if (pendingTasks > 5) {
+    insights.add({
+      'title': '📋 مهام معلقة',
+      'message': 'لديك $pendingTasks مهام معلقة. قسمها إلى مهام أصغر لتسهيل إنجازها.',
+    });
+  }
+
+  // توصية قرب الهدف
+  if (pendingTasks <= 3 && pendingTasks > 0) {
+    insights.add({
+      'title': '🌟 قريب من الهدف',
+      'message': 'بقي لك $pendingTasks مهام فقط. أنت على بعد خطوات من إنجاز كل شيء!',
+    });
+  }
+
+  // توصية البدء (للمستخدمين الجدد)
+  if (tasks.isEmpty) {
+    insights.add({
+      'title': '✨ ابدأ رحلتك',
+      'message': 'أضف مهامك الأولى وابدأ رحلة الإنتاجية مع SecondMind!',
+      'action': 'إضافة مهمة',
+    });
+  }
+
+  // نصيحة يومية (إذا لم توجد توصيات أخرى)
+  if (insights.isEmpty) {
+    final tips = [
+      {'title': '💡 نصيحة اليوم', 'message': 'خصص أول 30 دقيقة من يومك للمهام الأكثر أهمية.'},
+      {'title': '🎯 تركيز', 'message': 'استخدم تقنية بومودورو لزيادة إنتاجيتك: 25 دقيقة عمل، 5 دقائق راحة.'},
+      {'title': '📅 تنظيم', 'message': 'خطط لمهامك في الليلة السابقة لتبدأ يومك بنشاط.'},
+      {'title': '🚀 إنجاز', 'message': 'أنجز أصعب مهمة أولاً في الصباح عندما تكون طاقتك في أعلى مستوياتها.'},
+    ];
+    insights.add(tips[DateTime.now().day % tips.length]);
+  }
+
+  return insights;
+}
 }

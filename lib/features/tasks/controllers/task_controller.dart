@@ -2,6 +2,7 @@
 import 'package:get/get.dart';
 import 'package:secondmind/data/models/task_model.dart';
 import 'package:secondmind/data/services/storage_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum TaskFilter { all, inProgress, completed, missed }
 
@@ -20,6 +21,8 @@ class TaskController extends GetxController {
   var tasks = <TaskModel>[].obs;
   var selectedFilter = TaskFilter.all.obs;
   Timer? _autoUpdateTimer;
+  var isGridView = false.obs;
+
   
   List<TaskFilter> get filters => TaskFilter.values;
   
@@ -36,6 +39,30 @@ class TaskController extends GetxController {
     }
   }
   
+  // إجمالي المهام في الأسبوع الحالي
+int get weeklyTasksCount {
+  final now = DateTime.now();
+  final startOfWeek = DateTime(now.year, now.month, now.day - now.weekday + 1);
+  return tasks.where((t) => t.createdAt.isAfter(startOfWeek)).length;
+}
+
+// إجمالي المهام في الأسبوع الماضي
+int get lastWeekTasksCount {
+  final now = DateTime.now();
+  final startOfLastWeek = DateTime(now.year, now.month, now.day - now.weekday - 6);
+  final endOfLastWeek = DateTime(now.year, now.month, now.day - now.weekday);
+  return tasks.where((t) => 
+    t.createdAt.isAfter(startOfLastWeek) && 
+    t.createdAt.isBefore(endOfLastWeek)
+  ).length;
+}
+
+// نسبة التغيير بين الأسبوعين
+double get weeklyTrendPercentage {
+  if (lastWeekTasksCount == 0) return 0;
+  return ((weeklyTasksCount - lastWeekTasksCount) / lastWeekTasksCount) * 100;
+}
+
   // ============ إحصائيات ============
   
   int get totalTasks => tasks.length;
@@ -127,14 +154,28 @@ class TaskController extends GetxController {
     return weekly;
   }
 
+
+String get bestProductivityTime {
+  final hourCount = List.filled(24, 0);
+  for (var task in tasks) {
+    if (task.completedAt != null) {
+      final hour = task.completedAt!.hour;
+      hourCount[hour]++;
+    }
+  }
+  final bestHour = hourCount.indexOf(hourCount.reduce((a, b) => a > b ? a : b));
+  return '$bestHour:00 - ${bestHour + 1}:00';
+}
+
   // ============ دورة الحياة ============
   
-  @override
-  void onInit() {
-    super.onInit();
-    loadTasks();
-    startAutoUpdateTimer();
-  }
+@override
+void onInit() {
+  super.onInit();
+  loadTasks();
+  startAutoUpdateTimer();
+  _loadViewPreference();
+}
   
   @override
   void onClose() {
@@ -142,6 +183,20 @@ class TaskController extends GetxController {
     super.onClose();
   }
   
+
+  // دالة لتحميل تفضيل العرض
+Future<void> _loadViewPreference() async {
+  final prefs = await SharedPreferences.getInstance();
+  isGridView.value = prefs.getBool('isGridView') ?? false;
+}
+
+// دالة لحفظ تفضيل العرض
+Future<void> toggleViewMode() async {
+  isGridView.value = !isGridView.value;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('isGridView', isGridView.value);
+}
+
   // ============ تحديث تلقائي ذكي ============
   
   void autoUpdateTaskStatus() {

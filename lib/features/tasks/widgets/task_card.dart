@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
 import 'package:secondmind/data/models/task_model.dart';
+import 'package:get/get.dart';
+import 'package:secondmind/features/tasks/controllers/task_controller.dart';
 
 class TaskCard extends StatefulWidget {
   final TaskModel task;
   final VoidCallback onStatusChanged;
   final VoidCallback onDelete;
   final VoidCallback onTap;
+  bool get isGridView => Get.find<TaskController>().isGridView.value;
+
 
   const TaskCard({
     super.key,
@@ -26,6 +30,7 @@ class _TaskCardState extends State<TaskCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool get isGridView => Get.find<TaskController>().isGridView.value;
 
   //============================================================================
   // HELPER METHODS
@@ -105,171 +110,169 @@ ${widget.task.registrationLink != null ? '📝 رابط التسجيل: ${widget
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _controller.forward(),
-      onTapUp: (_) => _controller.reverse(),
-      onTapCancel: () => _controller.reverse(),
-      onTap: widget.onTap,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            gradient: AppTheme.cardGradient,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: AppTheme.softShadow,
-            border: Border.all(
-              color: AppTheme.outlineVariant.withValues(alpha: 0.3),
-            ),
+@override
+Widget build(BuildContext context) {
+  return GestureDetector(
+    onTapDown: (_) => _controller.forward(),
+    onTapUp: (_) => _controller.reverse(),
+    onTapCancel: () => _controller.reverse(),
+    onTap: widget.onTap,
+    child: ScaleTransition(
+      scale: _scaleAnimation,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        decoration: BoxDecoration(
+          gradient: AppTheme.cardGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: AppTheme.softShadow,
+          border: Border.all(
+            color: AppTheme.outlineVariant.withValues(alpha: 0.3),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildStatusBadge(),
-                        _buildActionButtons(),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12), // ✅ قللنا المسافة
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: _buildStatusBadge()), // ✅ Expanded
+                      _buildActionButtons(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
 
-                    // Title
+                  // Title
+                  Text(
+                    widget.task.title,
+                    style: AppTheme.headlineMd.copyWith(
+                      fontSize: isGridView ? 13 : 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: isGridView ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  if (widget.task.description != null) ...[
+                    const SizedBox(height: 4),
                     Text(
-                      widget.task.title,
-                      style: AppTheme.headlineMd.copyWith(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 2,
+                      widget.task.description!,
+                      style: AppTheme.bodyMd.copyWith(fontSize: isGridView ? 10 : 12),
+                      maxLines: isGridView ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-
-                    if (widget.task.description != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.task.description!,
-                        style: AppTheme.bodyMd.copyWith(fontSize: 13),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-
-                    const SizedBox(height: 12),
-
-                    // Date
-                    if (widget.task.dueDate != null)
-                      _buildInfoRow(
-                        icon: Icons.calendar_today_outlined,
-                        text: _formatDate(widget.task.dueDate!),
-                      ),
-
-                    // Location (if exists)
-                    if (widget.task.location != null)
-                      _buildInfoRow(
-                        icon: Icons.location_on_outlined,
-                        text: widget.task.location!,
-                      ),
                   ],
-                ),
-              ),
 
-              // Action Button
-              _buildActionButton(),
-            ],
-          ),
+                  const SizedBox(height: 8),
+
+                  // Date
+                  if (widget.task.dueDate != null)
+                    _buildInfoRow(
+                      icon: Icons.calendar_today_outlined,
+                      text: _formatDate(widget.task.dueDate!),
+                    ),
+
+                  // Location (if exists)
+                  if (widget.task.location != null)
+                    _buildInfoRow(
+                      icon: Icons.location_on_outlined,
+                      text: widget.task.location!,
+                    ),
+                ],
+              ),
+            ),
+
+            // Action Button
+            _buildActionButton(),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildStatusBadge() {
-    final color = _getStatusColor();
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.task.priority == TaskPriority.urgent)
-            Container(
-              width: 6,
-              height: 6,
-              margin: const EdgeInsets.only(left: 6),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color,
-              ),
-            ),
-          Text(
-            _getStatusText(),
-            style: AppTheme.labelMd.copyWith(
-              color: color,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ زر المشاركة والحذف المعدلين
-  Widget _buildActionButtons() {
-    return Row(
+Widget _buildStatusBadge() {
+  final color = _getStatusColor();
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // زر المشاركة
-        IconButton(
-          icon: Icon(Icons.share_outlined, size: 20, color: AppTheme.outline),
-          onPressed: _shareTask,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          tooltip: 'مشاركة المهمة',
-        ),
-        const SizedBox(width: 12),
-        // زر الحذف
-        IconButton(
-          icon: Icon(Icons.delete_outline, size: 20, color: AppTheme.outline),
-          onPressed: widget.onDelete,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          tooltip: 'حذف المهمة',
+        if (widget.task.priority == TaskPriority.urgent)
+          Container(
+            width: 4,
+            height: 4,
+            margin: const EdgeInsets.only(left: 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+            ),
+          ),
+        Text(
+          _getStatusText(),
+          style: AppTheme.labelMd.copyWith(
+            color: color,
+            fontSize: isGridView ? 9 : 10,
+          ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildInfoRow({required IconData icon, required String text}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: AppTheme.outline),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              text,
-              style: AppTheme.bodyMd.copyWith(fontSize: 12),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+  // ✅ زر المشاركة والحذف المعدلين
+Widget _buildActionButtons() {
+  final iconSize = isGridView ? 16.0 : 20.0;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconButton(
+        icon: Icon(Icons.share_outlined, size: iconSize, color: AppTheme.outline),
+        onPressed: _shareTask,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        tooltip: 'مشاركة المهمة',
       ),
-    );
-  }
+      const SizedBox(width: 8),
+      IconButton(
+        icon: Icon(Icons.delete_outline, size: iconSize, color: AppTheme.outline),
+        onPressed: widget.onDelete,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+        tooltip: 'حذف المهمة',
+      ),
+    ],
+  );
+}
+
+Widget _buildInfoRow({required IconData icon, required String text}) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 2),
+    child: Row(
+      children: [
+        Icon(icon, size: isGridView ? 10 : 12, color: AppTheme.outline),
+        const SizedBox(width: 4),
+        Expanded(  // ✅ أضف Expanded
+          child: Text(
+            text,
+            style: AppTheme.bodyMd.copyWith(fontSize: isGridView ? 9 : 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildActionButton() {
     // ✅ المهام الفائتة لا يمكن إكمالها مباشرة، تحتاج إعادة فتح

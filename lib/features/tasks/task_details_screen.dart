@@ -10,6 +10,7 @@ import 'package:secondmind/data/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:secondmind/data/services/event_service.dart';
+import 'package:secondmind/widgets/fee_section.dart';
 
 class TaskDetailsScreen extends StatefulWidget {
   final TaskModel task;
@@ -42,6 +43,10 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
   String? _contactEmail;
   String? _registrationLink;
   String? _fee;
+  String? _feeType;
+  String? _feeCurrency;
+  double? _feeAmount;
+  String? _feeNote;
   String? _additionalNotes;
   int? _reminderMinutes;
   final List<int> _reminderOptions = [0, 5, 10, 15, 30, 60, 120];
@@ -54,6 +59,12 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
 
   bool _isEditing = false;
   bool _isLoading = false;
+  final Map<String, bool> _feeTypeMap = {
+    'مجاني': false,
+    'مدفوع': false,
+    'مخفض': false,
+    'مخصص': false,
+  };
 
   //============================================================================
   // HELPER METHODS FOR DISPLAY NAMES
@@ -263,115 +274,128 @@ class _TaskDetailsScreenState extends State<TaskDetailsScreen> {
     }
   }
 
-Future<void> _saveChanges() async {
-  if (_titleController.text.trim().isEmpty) {
-    Get.snackbar('تنبيه', 'الرجاء إدخال عنوان المهمة');
-    return;
-  }
+  Future<void> _saveChanges() async {
+    if (_titleController.text.trim().isEmpty) {
+      Get.snackbar('تنبيه', 'الرجاء إدخال عنوان المهمة');
+      return;
+    }
 
-  setState(() => _isLoading = true);
+    setState(() => _isLoading = true);
 
-  DateTime? dueDate;
-  if (_selectedDate != null && _selectedTime != null) {
-    dueDate = DateTime(
-      _selectedDate!.year,
-      _selectedDate!.month,
-      _selectedDate!.day,
-      _selectedTime!.hour,
-      _selectedTime!.minute,
-    );
-  } else if (_selectedDate != null) {
-    dueDate = _selectedDate;
-  }
-
-  final updatedTask = widget.task.copyWith(
-    title: _titleController.text.trim(),
-    description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
-    dueDate: dueDate,
-    priority: _selectedPriority,
-    category: _selectedCategory,
-    status: _selectedStatus,
-    location: _location,
-    attendanceType: _attendanceType,
-    meetingLink: _meetingLink,
-    organizer: _organizer,
-    contactPhone: _contactPhone,
-    contactEmail: _contactEmail,
-    registrationLink: _registrationLink,
-    fee: _fee,
-    additionalNotes: _additionalNotes,
-  );
-
-  await _cancelExistingReminder();
-
-  if (_isReminderSet && _reminderMinutes != null && dueDate != null) {
-    final reminderTime = dueDate.subtract(Duration(minutes: _reminderMinutes!));
-    if (reminderTime.isAfter(DateTime.now())) {
-      final reminderId = DateTime.now().millisecondsSinceEpoch % 10000;
-      _scheduledReminderId = reminderId;
-      
-      await NotificationService.scheduleTaskReminder(
-        id: reminderId,
-        title: '🔔 تذكير: ${_titleController.text.trim()}',
-        body: 'موعد المهمة بعد ${_reminderMinutes} دقيقة',
-        scheduledTime: reminderTime,
+    DateTime? dueDate;
+    if (_selectedDate != null && _selectedTime != null) {
+      dueDate = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
       );
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('reminder_${widget.task.id}', _reminderMinutes!);
+    } else if (_selectedDate != null) {
+      dueDate = _selectedDate;
+    }
+
+    final updatedTask = widget.task.copyWith(
+      title: _titleController.text.trim(),
+      description: _descriptionController.text.trim().isEmpty
+          ? null
+          : _descriptionController.text.trim(),
+      dueDate: dueDate,
+      priority: _selectedPriority,
+      category: _selectedCategory,
+      status: _selectedStatus,
+      location: _location,
+      attendanceType: _attendanceType,
+      meetingLink: _meetingLink,
+      organizer: _organizer,
+      contactPhone: _contactPhone,
+      contactEmail: _contactEmail,
+      registrationLink: _registrationLink,
+      fee: _fee,
+      additionalNotes: _additionalNotes,
+    );
+
+    await _cancelExistingReminder();
+
+if (_isReminderSet && _reminderMinutes != null && dueDate != null) {
+  final reminderTime = dueDate.subtract(Duration(minutes: _reminderMinutes!));
+  if (reminderTime.isAfter(DateTime.now())) {
+    final reminderId = DateTime.now().millisecondsSinceEpoch % 10000;
+    _scheduledReminderId = reminderId;
+
+    await NotificationService.scheduleTaskReminder(
+      id: reminderId,
+      title: '🔔 تذكير: ${_titleController.text.trim()}',
+      body: 'موعد المهمة بعد ${_reminderMinutes} دقيقة',
+      scheduledTime: reminderTime,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('reminder_${widget.task.id}', _reminderMinutes!);
+    
+    // ✅ إشعار تأكيد التذكير
+    Get.snackbar(
+      '✅ تم تفعيل التذكير',
+      'سيتم تذكيرك قبل ${_reminderMinutes} دقيقة من موعد المهمة',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppTheme.statusCompleted,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
+  }
+}
+
+    await _taskController.updateTask(updatedTask);
+
+    // ✅ إضافة حدث عند تعديل المهمة
+    await EventService.addEvent(
+      title: '✏️ تم التعديل',
+      message: 'تم تعديل مهمة: ${_titleController.text.trim()}',
+      type: 'edit',
+      taskId: updatedTask.id,
+    );
+
+    await SoundService.playNotificationSound();
+    await NotificationService.showNotification(
+      title: '✏️ تم التعديل',
+      body: 'تم تعديل مهمة: ${_titleController.text.trim()}',
+      playSound: false,
+    );
+
+    setState(() => _isLoading = false);
+
+    Get.back(result: true);
+    Get.snackbar('نجاح', 'تم تحديث المهمة بنجاح');
+  }
+
+  Future<void> _deleteTask() async {
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        backgroundColor: AppTheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('حذف المهمة'),
+        content: Text('هل أنت متأكد من حذف مهمة "${widget.task.title}"؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () =>
+                Get.back(result: true), // ✅ إرجاع true وإغلاق النافذة
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _taskController.deleteTask(widget.task.id);
+      Get.back(result: true); // ✅ إغلاق صفحة التفاصيل
+      Get.snackbar('تم الحذف', 'تم حذف المهمة بنجاح');
     }
   }
-
-  await _taskController.updateTask(updatedTask);
-  
-  // ✅ إضافة حدث عند تعديل المهمة
-  await EventService.addEvent(
-    title: '✏️ تم التعديل',
-    message: 'تم تعديل مهمة: ${_titleController.text.trim()}',
-    type: 'edit',
-    taskId: updatedTask.id,
-  );
-  
-  await SoundService.playNotificationSound();
-  await NotificationService.showNotification(
-    title: '✏️ تم التعديل',
-    body: 'تم تعديل مهمة: ${_titleController.text.trim()}',
-    playSound: false,
-  );
-  
-  setState(() => _isLoading = false);
-  
-  Get.back(result: true);
-  Get.snackbar('نجاح', 'تم تحديث المهمة بنجاح');
-}
-
-Future<void> _deleteTask() async {
-  final confirmed = await Get.dialog<bool>(
-    AlertDialog(
-      backgroundColor: AppTheme.surfaceContainerLowest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('حذف المهمة'),
-      content: Text('هل أنت متأكد من حذف مهمة "${widget.task.title}"؟'),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(result: false),
-          child: const Text('إلغاء'),
-        ),
-        ElevatedButton(
-          onPressed: () => Get.back(result: true), // ✅ إرجاع true وإغلاق النافذة
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
-          child: const Text('حذف'),
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed == true) {
-    await _taskController.deleteTask(widget.task.id);
-    Get.back(result: true); // ✅ إغلاق صفحة التفاصيل
-    Get.snackbar('تم الحذف', 'تم حذف المهمة بنجاح');
-  }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -420,7 +444,7 @@ Future<void> _deleteTask() async {
         children: [
           _buildHeaderCard(),
           const SizedBox(height: 20),
-          _buildTimeRemainingCard(), // ✅ أضف هذا
+          _buildTimeRemainingCard(),
           const SizedBox(height: 16),
 
           _buildStatusSection(),
@@ -448,11 +472,11 @@ Future<void> _deleteTask() async {
           const SizedBox(height: 16),
           _buildRegistrationLinkSection(),
           const SizedBox(height: 16),
-          _buildFeeSection(),
+          _buildFeeSection(), // ✅ مرة واحدة فقط
           const SizedBox(height: 16),
           _buildAdditionalNotesSection(),
           const SizedBox(height: 16),
-          _buildReminderSection(), // ✅ أضف هذا
+          _buildReminderSection(),
           const SizedBox(height: 24),
           if (!_isEditing) _buildActionButtons(),
         ],
@@ -901,22 +925,6 @@ Future<void> _deleteTask() async {
     );
   }
 
-  Widget _buildFeeSection() {
-    return _buildDetailCard(
-      icon: Icons.money,
-      label: 'الرسوم',
-      child: _isEditing
-          ? TextField(
-              onChanged: (value) => _fee = value,
-              controller: TextEditingController(text: _fee),
-              style: AppTheme.bodyLg,
-              decoration: const InputDecoration(
-                  hintText: 'مجاني / 50 ريال', border: InputBorder.none),
-            )
-          : Text(_fee ?? 'غير محدد', style: AppTheme.bodyLg),
-    );
-  }
-
   Widget _buildAdditionalNotesSection() {
     return _buildDetailCard(
       icon: Icons.note,
@@ -1274,5 +1282,30 @@ Future<void> _deleteTask() async {
     if (totalDuration <= 0) return 0;
     final progress = elapsed / totalDuration;
     return progress.clamp(0.0, 1.0);
+  }
+
+  Widget _buildFeeSection() {
+    // إضافة المتغيرات إذا لم تكن موجودة
+    if (!_feeTypeMap.containsKey(_feeType)) {
+      _feeType = 'مجاني';
+      _feeCurrency = 'SAR';
+    }
+
+    return FeeSection(
+      initialFee: _fee,
+      initialFeeType: _feeType,
+      initialFeeCurrency: _feeCurrency,
+      initialFeeAmount: _feeAmount,
+      initialFeeNote: _feeNote,
+      onChanged: (data) {
+        setState(() {
+          _fee = data['fee'];
+          _feeType = data['fee_type'];
+          _feeCurrency = data['fee_currency'];
+          _feeAmount = data['fee_amount'];
+          _feeNote = data['fee_note'];
+        });
+      },
+    );
   }
 }

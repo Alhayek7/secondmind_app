@@ -1,5 +1,4 @@
-﻿// lib/main.dart
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
@@ -23,11 +22,11 @@ void main() async {
   Hive.registerAdapter(TaskPriorityAdapter());
   Hive.registerAdapter(TaskCategoryAdapter());
   Hive.registerAdapter(AttendanceTypeAdapter());
-  Hive.registerAdapter(EventModelAdapter()); // ✅ أضف هذا
+  Hive.registerAdapter(EventModelAdapter()); // ✅ أضف هذا السطر
   
   await Hive.openBox<TaskModel>('tasks');
   await Hive.openBox('settings');
-  await Hive.openBox<EventModel>('events');
+  await Hive.openBox<EventModel>('events'); // ✅ أضف هذا السطر
   
   await EventService.init();
   await StorageService.init();

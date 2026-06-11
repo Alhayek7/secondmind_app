@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:secondmind/core/theme/app_theme.dart';
 import 'package:secondmind/core/routes/app_routes.dart';
+import 'package:secondmind/features/help/help_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -64,7 +65,7 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // قائمة التنقل
           _buildDrawerItem(
             icon: Icons.person_outline,
@@ -80,6 +81,14 @@ class AppDrawer extends StatelessWidget {
             onTap: () {
               Get.back();
               Get.toNamed(AppRoutes.settings);
+            },
+          ),
+          _buildDrawerItem(
+            icon: Icons.help_outline,
+            title: 'المساعدة والدعم',
+            onTap: () {
+              Get.back();
+              Get.to(() => const HelpScreen());
             },
           ),
           const Divider(height: 1, indent: 20, endIndent: 20),
@@ -112,7 +121,8 @@ class AppDrawer extends StatelessWidget {
     bool isDestructive = false,
   }) {
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? AppTheme.error : AppTheme.primary),
+      leading:
+          Icon(icon, color: isDestructive ? AppTheme.error : AppTheme.primary),
       title: Text(
         title,
         style: AppTheme.bodyLg.copyWith(
@@ -131,12 +141,15 @@ class AppDrawer extends StatelessWidget {
       AlertDialog(
         backgroundColor: AppTheme.surfaceContainerLowest,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('تسجيل الخروج', style: AppTheme.headlineMd.copyWith(color: AppTheme.error)),
-        content: Text('هل أنت متأكد من رغبتك في تسجيل الخروج؟', style: AppTheme.bodyMd),
+        title: Text('تسجيل الخروج',
+            style: AppTheme.headlineMd.copyWith(color: AppTheme.error)),
+        content: Text('هل أنت متأكد من رغبتك في تسجيل الخروج؟',
+            style: AppTheme.bodyMd),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('إلغاء', style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
+            child: Text('إلغاء',
+                style: AppTheme.labelMd.copyWith(color: AppTheme.outline)),
           ),
           ElevatedButton(
             onPressed: () {

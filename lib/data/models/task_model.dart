@@ -68,60 +68,72 @@ extension AttendanceTypeExtension on AttendanceType {
 class TaskModel {
   @HiveField(0)
   final String id;
-  
+
   @HiveField(1)
   String title;
-  
+
   @HiveField(2)
   String? description;
-  
+
   @HiveField(3)
   DateTime? dueDate;
-  
+
   @HiveField(4)
   TaskStatus status;
-  
+
   @HiveField(5)
   TaskPriority priority;
-  
+
   @HiveField(6)
   DateTime createdAt;
-  
+
   @HiveField(7)
   DateTime? completedAt;
-  
+
   @HiveField(8)
   int? timeSpent;
-  
+
   @HiveField(9)
   TaskCategory category;
-  
+
   @HiveField(10)
   String? location;
-  
+
   @HiveField(11)
   AttendanceType? attendanceType;
-  
+
   @HiveField(12)
   String? meetingLink;
-  
+
   @HiveField(13)
   String? organizer;
-  
+
   @HiveField(14)
   String? contactPhone;
-  
+
   @HiveField(15)
   String? contactEmail;
-  
+
   @HiveField(16)
   String? registrationLink;
-  
+
   @HiveField(17)
   String? fee;
-  
+
   @HiveField(18)
   String? additionalNotes;
+
+  @HiveField(19) // typeId جديد
+  String? feeType; // 'free', 'paid', 'discount'
+
+  @HiveField(20)
+  String? feeCurrency; // 'SAR', 'USD', 'AED', 'JOD'
+
+  @HiveField(21)
+  double? feeAmount;
+
+  @HiveField(22)
+  String? feeNote; // ملاحظات إضافية مثل "شامل الضريبة"
 
   TaskModel({
     required this.id,
@@ -144,7 +156,7 @@ class TaskModel {
     this.fee,
     this.additionalNotes,
   });
-  
+
   TaskModel copyWith({
     String? id,
     String? title,
